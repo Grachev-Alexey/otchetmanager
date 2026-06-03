@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Plus } from 'lucide-react';
 
 import { useData }           from './hooks/useData';
 import { api }               from './api/client';
@@ -13,16 +14,17 @@ import UserManagementPage    from './pages/UserManagementPage';
 import Sidebar               from './components/Sidebar';
 import Header                from './components/Header';
 import SalarySummary         from './components/SalarySummary';
+import LeadForm              from './components/LeadForm';
 
 type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management';
 
 const SESSION_KEY = 'vivi_marketing_session';
 
 const PAGE_TRANSITION = {
-  initial:    { opacity: 0, y: 12 },
-  animate:    { opacity: 1, y: 0 },
-  exit:       { opacity: 0, y: -12 },
-  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+  initial:    { opacity: 0 },
+  animate:    { opacity: 1 },
+  exit:       { opacity: 0 },
+  transition: { duration: 0.15, ease: 'easeOut' },
 };
 
 export default function App() {
@@ -34,7 +36,6 @@ export default function App() {
   const [isFormOpen, setIsFormOpen]     = useState(false);
   const [editingLead, setEditingLead]   = useState<LeadReport | null>(null);
 
-  // Initial load + restore session
   useEffect(() => {
     initialize().then(() => {
       try {
@@ -51,7 +52,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Light polling for leads only when authenticated and tab is visible
   useEffect(() => {
     if (!isAuthenticated) return;
     const id = setInterval(() => {
@@ -64,7 +64,6 @@ export default function App() {
     setCurrentUser(user);
     setAuth(true);
     localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    // Refresh all data right after login to pick up any server-side changes
     Promise.all([refreshLeads(), refreshRules(), refreshUsers()]);
   }, [refreshLeads, refreshRules, refreshUsers]);
 
@@ -116,18 +115,20 @@ export default function App() {
   const handleEditLead = useCallback((lead: LeadReport) => {
     setEditingLead(lead);
     setIsFormOpen(true);
-    setActiveMenu('leads');
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsFormOpen(false);
+    setEditingLead(null);
+  }, []);
+
+  const openNewForm = useCallback(() => {
+    setEditingLead(null);
+    setIsFormOpen(true);
   }, []);
 
   const navigate = useCallback((menu: ActiveMenu) => {
     setActiveMenu(menu);
-    if (menu !== 'leads') { setIsFormOpen(false); setEditingLead(null); }
-  }, []);
-
-  const toggleForm = useCallback(() => {
-    setEditingLead(null);
-    setIsFormOpen(open => !open);
-    setActiveMenu('leads');
   }, []);
 
   if (loading) {
@@ -161,11 +162,7 @@ export default function App() {
       />
 
       <main className="flex-1 flex flex-col min-w-0 z-10 relative">
-        <Header
-          activeMenu={activeMenu}
-          isFormOpen={isFormOpen}
-          onToggleForm={toggleForm}
-        />
+        <Header activeMenu={activeMenu} />
 
         <div className="flex-1 p-5 lg:p-8 max-w-7xl mx-auto w-full">
           <AnimatePresence mode="wait">
@@ -186,13 +183,8 @@ export default function App() {
                 <LeadsPage
                   leads={leads}
                   currentUser={currentUser}
-                  allUsers={allUsers}
-                  isFormOpen={isFormOpen}
-                  editingLead={editingLead}
-                  onSaveLead={handleSaveLead}
-                  onDeleteLead={handleDeleteLead}
                   onEditLead={handleEditLead}
-                  onCloseForm={() => { setIsFormOpen(false); setEditingLead(null); }}
+                  onDeleteLead={handleDeleteLead}
                 />
               </motion.div>
             )}
@@ -227,6 +219,52 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Floating sticky button */}
+      <button
+        onClick={openNewForm}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-[0_8px_28px_-4px_rgba(79,70,229,0.55)] hover:shadow-[0_8px_32px_-4px_rgba(79,70,229,0.7)] transition-all duration-200 cursor-pointer text-[11px] uppercase tracking-widest active:scale-95"
+      >
+        <Plus className="w-4 h-4 shrink-0" />
+        <span className="hidden sm:block">Внести запись</span>
+      </button>
+
+      {/* Modal overlay */}
+      <AnimatePresence>
+        {isFormOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={closeModal}
+            />
+
+            {/* Modal card */}
+            <motion.div
+              className="relative w-full sm:max-w-2xl max-h-[95dvh] sm:max-h-[88vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-neutral-100"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              <LeadForm
+                initialLead={editingLead}
+                currentUserRole={currentUser.role}
+                currentManagerName={currentUser.name}
+                staffList={allUsers}
+                onSave={handleSaveLead}
+                onCancel={closeModal}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

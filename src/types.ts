@@ -8,6 +8,7 @@ export interface LeadReport {
   amocrmLeadId?: string;
   bookingDate: string; // ISO date string YYYY-MM-DD
   status: LeadStatus;
+  city?: string;
   depositRequired: boolean;
   depositAmount: number;
   depositPaid: boolean;

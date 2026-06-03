@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, Sliders, FileText, Settings, Sparkles, Key, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Sliders, FileText, Settings, Sparkles, LogOut } from 'lucide-react';
 import type { StaffMember } from '../types';
 
 type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management';
@@ -15,15 +15,15 @@ interface SidebarProps {
 
 export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLeadsCount, totalUsersCount, onLogout }: SidebarProps) {
   const navItems = [
-    { id: 'dashboard' as const, label: 'Сводка KPI', icon: LayoutDashboard },
+    { id: 'dashboard' as const, label: 'Главная', icon: LayoutDashboard },
     { id: 'leads' as const, label: 'Записи', icon: Users, badge: totalLeadsCount },
-    { id: 'salary' as const, label: 'Расчёт KPI', icon: Sliders },
-    { id: 'staff_directory' as const, label: 'Сотрудники', icon: FileText, badge: totalUsersCount },
-    ...(currentUser.role === 'admin' ? [{ id: 'user_management' as const, label: 'Права доступа', icon: Settings }] : []),
+    ...(currentUser.role === 'admin' ? [{ id: 'salary' as const, label: 'Зарплаты', icon: Sliders }] : []),
+    ...(currentUser.role === 'admin' ? [{ id: 'staff_directory' as const, label: 'Команда', icon: FileText, badge: totalUsersCount }] : []),
+    ...(currentUser.role === 'admin' ? [{ id: 'user_management' as const, label: 'Настройки', icon: Settings }] : []),
   ];
 
   return (
-    <aside className="w-full lg:w-72 bg-white/75 backdrop-blur-md border-b lg:border-b-0 lg:border-r border-indigo-100/40 shrink-0 flex flex-col justify-between z-40 shadow-sm lg:sticky lg:top-0 lg:h-screen">
+    <aside className="w-full lg:w-72 bg-white border-b lg:border-b-0 lg:border-r border-neutral-100 shrink-0 flex flex-col justify-between z-40 shadow-sm lg:sticky lg:top-0 lg:h-screen">
       <div>
         <div className="p-6 border-b border-neutral-100/40">
           <div className="flex items-center gap-3">
@@ -35,31 +35,25 @@ export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLead
                 <span className="text-xs font-display font-bold text-neutral-950 uppercase tracking-widest leading-none">Виви Маркетинг</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-ping" />
               </div>
-              <span className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest block mt-2 leading-none">KPI-менеджмент отделов</span>
             </div>
           </div>
 
           <div className="mt-5 p-4 rounded-xl bg-white/40 backdrop-blur-xs border border-white/60 shadow-sm">
-            <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest leading-none">АКТИВНАЯ СЕССИЯ:</p>
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-xl bg-neutral-950 flex items-center justify-center font-display font-semibold text-xs text-white shadow-sm">
                 {currentUser.name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-semibold text-neutral-950 truncate leading-none">{currentUser.name}</h4>
-                <p className="text-[9px] text-neutral-500 mt-1.5 flex items-center gap-1.5 leading-none font-medium">
-                  <Key className="w-3 h-3 text-neutral-400 shrink-0" />
-                  <span>{currentUser.role === 'admin' ? 'Администратор' : 'Личный кабинет'}</span>
-                </p>
+                {currentUser.role === 'admin' && (
+                  <p className="text-[9px] text-neutral-500 mt-1.5 leading-none font-medium">Администратор</p>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         <nav className="p-5 space-y-1">
-          <span className="block px-2.5 mb-3 text-[8.5px] font-bold uppercase tracking-widest text-neutral-400 leading-none">
-            РАЗДЕЛЫ СИСТЕМЫ
-          </span>
           {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeMenu === item.id;

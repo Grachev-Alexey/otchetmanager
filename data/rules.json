@@ -1,0 +1,8 @@
+{
+  "baseSalary": 40000,
+  "perBooking": 1000,
+  "perDepositCollected": 1500,
+  "perShowUp": 2000,
+  "targetBookings": 15,
+  "bonusAmount": 10000
+}

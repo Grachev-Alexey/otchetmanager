@@ -19,6 +19,7 @@ router.get('/', async (_req, res) => {
         amocrmLeadId: r.amocrm_lead_id,
         bookingDate: r.booking_date,
         status: r.status,
+        city: r.city || '',
         depositRequired: r.deposit_required,
         depositAmount: parseFloat(r.deposit_amount),
         depositPaid: r.deposit_paid,
@@ -33,16 +34,57 @@ router.get('/', async (_req, res) => {
   res.json(readLocalLeads());
 });
 
+// GET /api/leads/lookup?amocrmId=XXXXX
+// Looks up client name + phone first from the AmoCRM `leads` table (67k rows),
+// then falls back to leads_reporting if not found there.
+router.get('/lookup', async (req, res) => {
+  const { amocrmId } = req.query;
+  if (!amocrmId || typeof amocrmId !== 'string') {
+    return res.status(400).json({ error: 'amocrmId required' });
+  }
+  if (db.pool && db.isConnected) {
+    try {
+      // 1. Try the main AmoCRM leads table first (richest source)
+      const amoResult = await db.pool.query(
+        `SELECT name, phone FROM leads WHERE deal_id = $1 LIMIT 1`,
+        [amocrmId]
+      );
+      if (amoResult.rows.length > 0) {
+        const r = amoResult.rows[0];
+        return res.json({ found: true, clientName: r.name || '', clientPhone: r.phone || '', source: 'amocrm' });
+      }
+      // 2. Fall back to our own leads_reporting history
+      const reportResult = await db.pool.query(
+        `SELECT client_name, client_phone FROM leads_reporting
+         WHERE amocrm_lead_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [amocrmId]
+      );
+      if (reportResult.rows.length > 0) {
+        const r = reportResult.rows[0];
+        return res.json({ found: true, clientName: r.client_name || '', clientPhone: r.client_phone || '', source: 'history' });
+      }
+      return res.json({ found: false });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  const leads = readLocalLeads();
+  const found = leads.find((l: any) => l.amocrmLeadId === amocrmId);
+  if (found) return res.json({ found: true, clientName: found.clientName, clientPhone: found.clientPhone, source: 'history' });
+  return res.json({ found: false });
+});
+
 // POST /api/leads  (create or upsert)
 router.post('/', async (req, res) => {
   const { id, managerName, clientName, clientPhone, amocrmLeadId,
-          bookingDate, status, depositRequired, depositAmount, depositPaid, comments } = req.body;
+          bookingDate, status, city, depositRequired, depositAmount, depositPaid, comments } = req.body;
 
-  if (!managerName || !clientName || !bookingDate || !status) {
+  if (!managerName || !clientName || !bookingDate) {
     return res.status(400).json({ error: 'Отсутствуют обязательные поля' });
   }
 
   const leadId = id || `lead-${Date.now()}`;
+  const finalStatus = status || 'booked';
   const now = new Date().toISOString();
 
   if (db.pool && db.isConnected) {
@@ -50,9 +92,9 @@ router.post('/', async (req, res) => {
       await db.pool.query(`
         INSERT INTO leads_reporting (
           id, manager_name, client_name, client_phone, amocrm_lead_id,
-          booking_date, status, deposit_required, deposit_amount, deposit_paid,
+          booking_date, status, city, deposit_required, deposit_amount, deposit_paid,
           comments, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         ON CONFLICT (id) DO UPDATE SET
           manager_name = EXCLUDED.manager_name,
           client_name = EXCLUDED.client_name,
@@ -60,13 +102,14 @@ router.post('/', async (req, res) => {
           amocrm_lead_id = EXCLUDED.amocrm_lead_id,
           booking_date = EXCLUDED.booking_date,
           status = EXCLUDED.status,
+          city = EXCLUDED.city,
           deposit_required = EXCLUDED.deposit_required,
           deposit_amount = EXCLUDED.deposit_amount,
           deposit_paid = EXCLUDED.deposit_paid,
           comments = EXCLUDED.comments,
           updated_at = EXCLUDED.updated_at
       `, [leadId, managerName, clientName, clientPhone || '', amocrmLeadId || '',
-          bookingDate, status, !!depositRequired, depositAmount || 0,
+          bookingDate, finalStatus, city || '', !!depositRequired, depositAmount || 0,
           !!depositPaid, comments || '', now, now]);
       return res.json({ id: leadId, success: true });
     } catch (err: any) {

@@ -53,7 +53,7 @@ export default function LeadList({
         };
       case 'no_show':
         return { 
-          text: 'Неявка', 
+          text: 'Не пришёл', 
           icon: XCircle,
           colorClasses: 'bg-rose-50 border-rose-200/50 text-rose-700'
         };
@@ -125,12 +125,12 @@ export default function LeadList({
           )}
 
           {/* Group of Status Pills */}
-          <div className="flex bg-white/30 backdrop-blur-md p-1 rounded-xl border border-neutral-200/50 overflow-x-auto gap-1 self-stretch xl:self-auto scrollbar-none shadow-3xs">
+          <div className="flex bg-white/80 p-1 rounded-xl border border-neutral-200/50 overflow-x-auto gap-1 self-stretch xl:self-auto scrollbar-none shadow-3xs">
             {[
               { id: 'all', label: 'Все записи' },
-              { id: 'booked', label: 'Назначено' },
+              { id: 'booked', label: 'Ожидает' },
               { id: 'showed_up', label: 'Визиты' },
-              { id: 'no_show', label: 'Неявки' },
+              { id: 'no_show', label: 'Не пришли' },
               { id: 'cancelled', label: 'Отмены' }
             ].map(btn => (
               <button
@@ -153,15 +153,16 @@ export default function LeadList({
 
       {/* Leads List Grid */}
       <div className="space-y-4">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="sync">
           {filteredLeads.length === 0 ? (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="spatial-glass rounded-3xl p-14 text-center relative overflow-hidden"
             >
-              <div className="absolute inset-0 bg-neutral-100/5 backdrop-blur-sm -z-10" />
+              <div className="absolute inset-0 bg-white/5 -z-10" />
               <Layers className="w-8 h-8 text-neutral-400 mx-auto mb-3 animate-pulse" />
               <p className="text-xs font-bold text-neutral-700 uppercase tracking-widest">Записи пока отсутствуют</p>
               <p className="text-[11px] text-neutral-450 mt-2 max-w-sm mx-auto font-medium leading-relaxed">
@@ -177,11 +178,10 @@ export default function LeadList({
                 <motion.div 
                   id={`lead-card-${lead.id}`}
                   key={lead.id || `lead-${idx}`} 
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  whileHover={{ y: -3, scale: 1.005, boxShadow: "0 12px 32px rgba(99, 102, 241, 0.05)" }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
                   className="spatial-glass rounded-2xl p-6 relative shadow-3xs"
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-5 relative z-10">
@@ -250,7 +250,7 @@ export default function LeadList({
 
                       {/* Comments inside panel */}
                       {lead.comments && (
-                        <div className="bg-white/20 backdrop-blur-xs p-3.5 rounded-xl border border-neutral-150/45 text-xs text-neutral-500 leading-relaxed shadow-3xs">
+                        <div className="bg-neutral-50/60 p-3.5 rounded-xl border border-neutral-150/45 text-xs text-neutral-500 leading-relaxed shadow-3xs">
                           <span className="font-bold block text-[8.5px] uppercase tracking-wider text-neutral-400 mb-1">Комментарий:</span>
                           {lead.comments}
                         </div>

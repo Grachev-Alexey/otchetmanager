@@ -112,7 +112,7 @@ export default function SalarySummary({
             <div className="flex items-center gap-2">
               <Settings className="w-4 h-4 text-neutral-500 animate-spin" style={{ animationDuration: '8s' }} />
               <h3 className="font-display font-semibold text-neutral-950 text-xs uppercase tracking-wider">
-                Настройки мотивации и планов KPI
+                Настройки зарплат и бонусов
               </h3>
             </div>
             
@@ -121,7 +121,7 @@ export default function SalarySummary({
               onClick={() => setIsEditingRules(!isEditingRules)}
               className="px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-neutral-600 hover:text-neutral-950 bg-white/40 border border-neutral-200/60 rounded-xl transition-all duration-300 cursor-pointer shadow-3xs active:scale-95 hover:bg-white/80"
             >
-              {isEditingRules ? 'Свернуть' : '⚙️ Редактировать KPI'}
+              {isEditingRules ? 'Свернуть' : '⚙️ Редактировать'}
             </button>
           </div>
 
@@ -129,9 +129,10 @@ export default function SalarySummary({
             {isEditingRules ? (
               <motion.form 
                 key="rules-form-editing"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
                 onSubmit={handleSave} 
                 className="p-6 border-t border-neutral-150/40 space-y-6 relative z-10"
               >
@@ -152,7 +153,7 @@ export default function SalarySummary({
                         type="number"
                         value={editedRules.baseSalary}
                         onChange={(e) => handleRuleChange('baseSalary', parseInt(e.target.value))}
-                        className="w-full pl-8 pr-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                        className="w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                       />
                     </div>
                   </div>
@@ -166,7 +167,7 @@ export default function SalarySummary({
                         type="number"
                         value={editedRules.perBooking}
                         onChange={(e) => handleRuleChange('perBooking', parseInt(e.target.value))}
-                        className="w-full pl-8 pr-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                        className="w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                       />
                     </div>
                   </div>
@@ -180,7 +181,7 @@ export default function SalarySummary({
                         type="number"
                         value={editedRules.perDepositCollected}
                         onChange={(e) => handleRuleChange('perDepositCollected', parseInt(e.target.value))}
-                        className="w-full pl-8 pr-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                        className="w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                       />
                     </div>
                   </div>
@@ -194,7 +195,7 @@ export default function SalarySummary({
                         type="number"
                         value={editedRules.perShowUp}
                         onChange={(e) => handleRuleChange('perShowUp', parseInt(e.target.value))}
-                        className="w-full pl-8 pr-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                        className="w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                       />
                     </div>
                   </div>
@@ -206,7 +207,7 @@ export default function SalarySummary({
                       type="number"
                       value={editedRules.targetBookings}
                       onChange={(e) => handleRuleChange('targetBookings', parseInt(e.target.value))}
-                      className="w-full px-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                      className="w-full px-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                     />
                   </div>
 
@@ -219,7 +220,7 @@ export default function SalarySummary({
                         type="number"
                         value={editedRules.bonusAmount}
                         onChange={(e) => handleRuleChange('bonusAmount', parseInt(e.target.value))}
-                        className="w-full pl-8 pr-4 py-3 bg-white/40 backdrop-blur-md border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white/80 transition-all duration-300 shadow-3xs"
+                        className="w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs"
                       />
                     </div>
                   </div>
@@ -260,7 +261,7 @@ export default function SalarySummary({
                   { label: 'Цель (план)', val: `${rules.targetBookings} записей` },
                   { label: 'Бонус за план', val: `+${rules.bonusAmount.toLocaleString()} ₽` }
                 ].map((stat, i) => (
-                  <div key={i} className="p-3.5 bg-white/40 backdrop-blur-md rounded-2xl border border-white/50 flex flex-col justify-center shadow-3xs transition-shadow hover:shadow-2xs">
+                  <div key={i} className="p-3.5 bg-neutral-50 rounded-2xl border border-white/50 flex flex-col justify-center shadow-3xs transition-shadow hover:shadow-2xs">
                     <p className="text-[8.5px] uppercase font-bold text-neutral-400 mb-1 tracking-wider leading-none">{stat.label}</p>
                     <p className="font-semibold text-xs text-neutral-900 leading-none mt-1.5">{stat.val}</p>
                   </div>
@@ -326,7 +327,7 @@ export default function SalarySummary({
                         <span>Прогресс выполнения плана KPI по записям</span>
                         <span className="text-neutral-950 font-bold">{Math.round(bookingProgress)}%</span>
                       </div>
-                      <div className="w-full bg-white/30 backdrop-blur-xs h-2 rounded-full overflow-hidden border border-white/40">
+                      <div className="w-full bg-white/60 h-2 rounded-full overflow-hidden border border-white/40">
                         <div 
                           className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500 flex items-center justify-end pr-1 shadow-3xs"
                           style={{ width: `${bookingProgress}%` }}
@@ -342,9 +343,9 @@ export default function SalarySummary({
                         { label: 'Записи', count: perf.totalBookings },
                         { label: 'Предоплаты', count: perf.totalDeposits },
                         { label: 'Визиты', count: perf.totalShowUps },
-                        { label: 'Неявки', count: perf.totalNoShows },
+                        { label: 'Не пришли', count: perf.totalNoShows },
                       ].map((stat, i) => (
-                        <div key={i} className="p-2.5 bg-white/40 backdrop-blur-sm rounded-xl border border-white/50 shadow-4xs">
+                        <div key={i} className="p-2.5 bg-neutral-50 rounded-xl border border-white/50 shadow-4xs">
                           <span className="text-[8px] text-neutral-400 block font-bold uppercase tracking-wider leading-none">{stat.label}</span>
                           <span className="font-bold text-xs block mt-2 text-neutral-900 leading-none">{stat.count}</span>
                         </div>
@@ -395,7 +396,7 @@ export default function SalarySummary({
                       </p>
                     </div>
                     
-                    <div className="p-2.5 border border-neutral-150/80 rounded-xl text-neutral-600 bg-white/50 backdrop-blur-md shadow-3xs hover:bg-neutral-950 hover:text-white transition-all duration-300 cursor-pointer">
+                    <div className="p-2.5 border border-neutral-150/80 rounded-xl text-neutral-600 bg-neutral-50 shadow-3xs hover:bg-neutral-950 hover:text-white transition-all duration-300 cursor-pointer">
                       <TrendingUp className="w-4 h-4" />
                     </div>
                   </div>

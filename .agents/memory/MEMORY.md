@@ -1,1 +1,2 @@
 - [Project architecture](architecture.md) — full modular structure: server/routes, src/pages, src/hooks, src/api; key conventions and production-readiness decisions.
+- [Database schema](database-schema.md) — 3 shared tables: marketing_users, leads_reporting, commission_rules. SHARED DB — do not drop/rename columns.

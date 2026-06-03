@@ -16,38 +16,32 @@ export const db = {
   },
 };
 
-const hasPgUrl = !!process.env.DATABASE_URL;
-const hasPgIndividual = !!(process.env.PGHOST && process.env.PGUSER && process.env.PGPASSWORD && process.env.PGDATABASE);
+// ONLY connect to the external vivi-n8n-stat DB via VIVI_DATABASE_URL.
+// Replit's DATABASE_URL / PG* vars are intentionally ignored.
+const viviUrl = process.env.VIVI_DATABASE_URL;
 
-if (hasPgUrl || hasPgIndividual) {
+if (viviUrl) {
   try {
-    const config = hasPgUrl
-      ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 3000 }
-      : {
-          host: process.env.PGHOST,
-          port: process.env.PGPORT ? parseInt(process.env.PGPORT) : 5432,
-          user: process.env.PGUSER,
-          password: process.env.PGPASSWORD,
-          database: process.env.PGDATABASE,
-          ssl: { rejectUnauthorized: false },
-          connectionTimeoutMillis: 3000,
-        };
-    db.pool = new pg.Pool(config as any);
+    db.pool = new pg.Pool({
+      connectionString: viviUrl,
+      ssl: false,
+      connectionTimeoutMillis: 8000,
+    });
     db.status.provider = 'postgres';
-    db.status.connectionInfo = hasPgUrl
-      ? process.env.DATABASE_URL!.split('@')[1] || 'PostgreSQL'
-      : `${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE}`;
+    db.status.connectionInfo = '77.95.201.27:5432/vivi-n8n-stat';
   } catch (err: any) {
     db.status.error = err.message || 'Failed to initialize Postgres pool';
     console.error('[DB] Pool init error:', err);
   }
+} else {
+  console.warn('[DB] VIVI_DATABASE_URL is not set — running in local JSON fallback mode. Set the secret to connect to vivi-n8n-stat.');
 }
 
 export async function bootstrapDb(): Promise<void> {
   if (!db.pool) return;
   try {
     const client = await db.pool.connect();
-    console.log('[DB] Connected to PostgreSQL.');
+    console.log('[DB] Connected to vivi-n8n-stat PostgreSQL.');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS leads_reporting (

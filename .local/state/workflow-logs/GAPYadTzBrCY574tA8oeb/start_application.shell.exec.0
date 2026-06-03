@@ -1,0 +1,57 @@
+
+> react-example@0.0.0 dev
+> tsx server.ts
+
+[1G[0K◇ injected env (0) from .env [2m// tip: ⌘ suppress logs { quiet: true }[0m
+◇ injected env (0) from .env [2m// tip: ◈ encrypted .env [www.dotenvx.com][0m
+[DB] Connected to PostgreSQL.
+[DB] Tables bootstrapped successfully.
+Server running on http://localhost:5000
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:49:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/C81ytXuBhm8Voi8J9fRKc/start_application.shell.exec.0[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:49:53 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/GAPYadTzBrCY574tA8oeb/start_application.shell.exec.0[22m
