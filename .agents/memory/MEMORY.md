@@ -1,2 +1,4 @@
 - [Project architecture](architecture.md) — full modular structure: server/routes, src/pages, src/hooks, src/api; key conventions and production-readiness decisions.
 - [Database schema](database-schema.md) — 3 shared tables: marketing_users, leads_reporting, commission_rules. SHARED DB — do not drop/rename columns.
+- [Commission formula](commission-formula.md) — new formula: showUps×visitRate + hours×85 + bookings×poRate; rates conditional on poThreshold (default 140).
+- [Shift tracking](shift-tracking.md) — work_sessions table; client-only timer (setInterval); ShiftWidget in Sidebar for managers only; 7 API endpoints under /api/shifts.

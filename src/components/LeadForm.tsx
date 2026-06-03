@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LeadReport, LeadStatus, StaffMember } from '../types';
-import { Phone, User, FileText, Check, X, ChevronDown, Link2, Loader2, Search, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { Phone, User, FileText, Check, X, ChevronDown, Link2, Loader2, Search, ChevronLeft, ChevronRight, MapPin, DollarSign } from 'lucide-react';
 
 interface LeadFormProps {
   initialLead?: LeadReport | null;
@@ -63,10 +63,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
     else setViewMonth(m => m + 1);
   }
 
-  // Build calendar grid (Mon-first)
   const firstDay = new Date(viewYear, viewMonth, 1);
   const lastDay = new Date(viewYear, viewMonth + 1, 0);
-  // Monday = 0 offset
   let startDow = firstDay.getDay() - 1; if (startDow < 0) startDow = 6;
   const cells: (number | null)[] = [];
   for (let i = 0; i < startDow; i++) cells.push(null);
@@ -88,7 +86,6 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-neutral-100 rounded-2xl shadow-xl p-4 w-72">
-          {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer">
               <ChevronLeft className="w-4 h-4 text-neutral-500" />
@@ -98,13 +95,11 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
               <ChevronRight className="w-4 h-4 text-neutral-500" />
             </button>
           </div>
-          {/* Day headers */}
           <div className="grid grid-cols-7 mb-1">
             {DAYS_RU.map(d => (
               <div key={d} className="text-center text-[10px] font-bold text-neutral-400 py-1">{d}</div>
             ))}
           </div>
-          {/* Days */}
           <div className="grid grid-cols-7 gap-y-1">
             {cells.map((day, i) => {
               if (!day) return <div key={i} />;
@@ -132,6 +127,80 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  icon,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+  icon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none rounded-xl transition-colors duration-150 text-sm cursor-pointer"
+        style={icon ? { paddingLeft: '2.5rem' } : {}}
+      >
+        {icon && (
+          <span className="absolute left-3.5 top-3.5 w-4 h-4 text-neutral-400 pointer-events-none">
+            {icon}
+          </span>
+        )}
+        <span className={value ? 'text-neutral-900 font-medium' : 'text-neutral-300'}>
+          {value || placeholder || '— Выбрать —'}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform duration-150 shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-neutral-100 rounded-2xl shadow-xl py-1.5 w-full min-w-max">
+          {placeholder && (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); }}
+              className="w-full text-left px-4 py-2.5 text-sm text-neutral-300 hover:bg-neutral-50 transition-colors duration-100 cursor-pointer"
+            >
+              {placeholder}
+            </button>
+          )}
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false); }}
+              className={`w-full text-left px-4 py-2.5 text-sm transition-colors duration-100 cursor-pointer flex items-center justify-between gap-3
+                ${value === opt
+                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                  : 'text-neutral-700 hover:bg-neutral-50'}`}
+            >
+              {opt}
+              {value === opt && <Check className="w-3.5 h-3.5 text-indigo-500 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function extractAmocrmId(input: string): string {
   const trimmed = input.trim();
   const urlMatch = trimmed.match(/\/leads\/detail\/(\d+)/);
@@ -149,6 +218,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
   const [city, setCity] = useState(initialLead?.city || '');
   const [depositRequired, setDepositRequired] = useState(initialLead?.depositRequired || false);
   const [depositAmount, setDepositAmount] = useState(initialLead?.depositAmount || 300);
+  const [visitCost, setVisitCost] = useState(initialLead?.visitCost ?? 2090);
   const [comments, setComments] = useState(initialLead?.comments || '');
 
   const [isLoading, setIsLoading] = useState(false);
@@ -202,6 +272,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
       depositRequired,
       depositAmount: depositRequired ? depositAmount : 0,
       depositPaid: initialLead?.depositPaid || false,
+      visitCost,
       comments: comments.trim(),
     };
     const isOk = await onSave(payload);
@@ -211,7 +282,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
       if (!initialLead) {
         setAmocrmUrl(''); setAmocrmLeadId(''); setClientName('');
         setClientPhone(''); setCity(''); setDepositRequired(false);
-        setDepositAmount(300); setComments(''); setLookupState('idle');
+        setDepositAmount(300); setVisitCost(2090); setComments(''); setLookupState('idle');
       }
       setTimeout(() => setSuccess(false), 2000);
     } else {
@@ -302,15 +373,27 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
           </div>
           <div>
             <label className={labelClass}>Город</label>
-            <div className="relative">
-              <MapPin className={iconClass} />
-              <select value={city} onChange={(e) => setCity(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-medium rounded-xl transition-colors duration-150 text-sm cursor-pointer appearance-none">
-                <option value="">— Выбрать город —</option>
-                {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3.5 top-3.5 w-4 h-4 text-neutral-400 pointer-events-none" />
-            </div>
+            <CustomSelect
+              value={city}
+              onChange={setCity}
+              options={CITIES}
+              placeholder="— Выбрать город —"
+              icon={<MapPin className="w-4 h-4" />}
+            />
+          </div>
+        </div>
+
+        {/* Visit cost */}
+        <div className="max-w-xs">
+          <label className={labelClass}>Стоимость визита (₽)</label>
+          <div className="relative">
+            <span className="absolute left-3.5 top-3 text-neutral-400 font-bold text-sm">₽</span>
+            <input
+              type="number"
+              value={visitCost || ''}
+              onChange={(e) => setVisitCost(parseInt(e.target.value) || 0)}
+              className="w-full pl-8 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-semibold rounded-xl transition-colors duration-150 text-sm"
+            />
           </div>
         </div>
 
@@ -345,7 +428,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
           <label className={labelClass}>Примечания</label>
           <div className="relative">
             <FileText className="absolute left-3.5 top-3.5 w-4 h-4 text-neutral-400" />
-            <textarea rows={2} placeholder="Например: просит позвонить заранее для подтверждения"
+            <textarea rows={2} placeholder=""
               value={comments} onChange={(e) => setComments(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-medium rounded-xl transition-colors duration-150 text-sm placeholder:text-neutral-300 resize-none" />
           </div>

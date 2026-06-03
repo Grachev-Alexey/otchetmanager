@@ -4,12 +4,53 @@ import { readLocalUsers, writeLocalUsers } from '../localFallback';
 
 const router = Router();
 
-const mapRow = (row: any) => ({
-  name: row.name, role: row.role, pin: row.pin,
-  department: row.department, bio: row.bio,
-  avatarColor: row.avatar_color,
-  status: row.status, lastActive: row.last_active,
-});
+// Online threshold: 3 minutes (heartbeat every 60s, so 3 missed beats = offline)
+const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+
+function deriveStatus(lastSeenAt: Date | null): 'online' | 'offline' {
+  if (!lastSeenAt) return 'offline';
+  return (Date.now() - lastSeenAt.getTime()) < ONLINE_THRESHOLD_MS ? 'online' : 'offline';
+}
+
+const MSK = 'Europe/Moscow';
+
+function toMskTime(date: Date): string {
+  return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: MSK });
+}
+
+function toMskDate(date: Date): string {
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: MSK });
+}
+
+function formatLastSeen(lastSeenAt: Date | null): string {
+  if (!lastSeenAt) return 'Не в сети';
+  const diffMs = Date.now() - lastSeenAt.getTime();
+  if (diffMs < 0) return 'Не в сети';
+  if (diffMs < ONLINE_THRESHOLD_MS) return 'В сети';
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 60) return `${diffMin} мин назад`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `был(а) в ${toMskTime(lastSeenAt)} МСК`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return `вчера в ${toMskTime(lastSeenAt)} МСК`;
+  if (diffD < 7) return `${diffD} дня назад в ${toMskTime(lastSeenAt)} МСК`;
+  return `${toMskDate(lastSeenAt)} в ${toMskTime(lastSeenAt)} МСК`;
+}
+
+function mapRow(row: any) {
+  const lastSeenAt: Date | null = row.last_seen_at ? new Date(row.last_seen_at) : null;
+  const status = deriveStatus(lastSeenAt);
+  return {
+    name: row.name,
+    role: row.role,
+    pin: row.pin,
+    department: row.department,
+    bio: row.bio,
+    avatarColor: row.avatar_color,
+    status,
+    lastActive: formatLastSeen(lastSeenAt),
+  };
+}
 
 // GET /api/users
 router.get('/', async (_req, res) => {
@@ -26,7 +67,7 @@ router.get('/', async (_req, res) => {
 
 // POST /api/users  (create or upsert)
 router.post('/', async (req, res) => {
-  const { name, role, pin, department, bio, avatarColor, status, lastActive } = req.body;
+  const { name, role, pin, department, bio, avatarColor } = req.body;
   if (!name || !role || !pin) {
     return res.status(400).json({ error: 'ФИО, роль и ПИН-код обязательны' });
   }
@@ -37,12 +78,11 @@ router.post('/', async (req, res) => {
     try {
       await db.pool.query(`
         INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color, status, last_active)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, 'offline', 'Не в сети')
         ON CONFLICT (name) DO UPDATE SET
           role = EXCLUDED.role, pin = EXCLUDED.pin, department = EXCLUDED.department,
-          bio = EXCLUDED.bio, avatar_color = EXCLUDED.avatar_color,
-          status = EXCLUDED.status, last_active = EXCLUDED.last_active
-      `, [name, role, pin, dept, bio || '', color, status || 'offline', lastActive || 'Не в сети']);
+          bio = EXCLUDED.bio, avatar_color = EXCLUDED.avatar_color
+      `, [name, role, pin, dept, bio || '', color]);
       return res.json({ success: true, name });
     } catch (err: any) {
       return res.status(500).json({ error: 'Database write error: ' + err.message });
@@ -51,8 +91,8 @@ router.post('/', async (req, res) => {
 
   const users = readLocalUsers();
   const idx = users.findIndex((u: any) => u.name === name);
-  const user = { name, role, pin, department: dept, bio: bio || '', avatarColor: color, status: status || 'offline', lastActive: lastActive || 'Не в сети' };
-  if (idx >= 0) users[idx] = user;
+  const user = { name, role, pin, department: dept, bio: bio || '', avatarColor: color, status: 'offline', lastActive: 'Не в сети' };
+  if (idx >= 0) users[idx] = { ...users[idx], ...user };
   else users.push(user);
   writeLocalUsers(users);
   res.json({ success: true, name });

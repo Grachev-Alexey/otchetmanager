@@ -23,6 +23,7 @@ router.get('/', async (_req, res) => {
         depositRequired: r.deposit_required,
         depositAmount: parseFloat(r.deposit_amount),
         depositPaid: r.deposit_paid,
+        visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
         comments: r.comments,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
@@ -77,7 +78,7 @@ router.get('/lookup', async (req, res) => {
 // POST /api/leads  (create or upsert)
 router.post('/', async (req, res) => {
   const { id, managerName, clientName, clientPhone, amocrmLeadId,
-          bookingDate, status, city, depositRequired, depositAmount, depositPaid, comments } = req.body;
+          bookingDate, status, city, depositRequired, depositAmount, depositPaid, visitCost, comments } = req.body;
 
   if (!managerName || !clientName || !bookingDate) {
     return res.status(400).json({ error: 'Отсутствуют обязательные поля' });
@@ -93,8 +94,8 @@ router.post('/', async (req, res) => {
         INSERT INTO leads_reporting (
           id, manager_name, client_name, client_phone, amocrm_lead_id,
           booking_date, status, city, deposit_required, deposit_amount, deposit_paid,
-          comments, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          visit_cost, comments, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
         ON CONFLICT (id) DO UPDATE SET
           manager_name = EXCLUDED.manager_name,
           client_name = EXCLUDED.client_name,
@@ -106,11 +107,12 @@ router.post('/', async (req, res) => {
           deposit_required = EXCLUDED.deposit_required,
           deposit_amount = EXCLUDED.deposit_amount,
           deposit_paid = EXCLUDED.deposit_paid,
+          visit_cost = EXCLUDED.visit_cost,
           comments = EXCLUDED.comments,
           updated_at = EXCLUDED.updated_at
       `, [leadId, managerName, clientName, clientPhone || '', amocrmLeadId || '',
           bookingDate, finalStatus, city || '', !!depositRequired, depositAmount || 0,
-          !!depositPaid, comments || '', now, now]);
+          !!depositPaid, visitCost != null ? visitCost : 2090, comments || '', now, now]);
       return res.json({ id: leadId, success: true });
     } catch (err: any) {
       return res.status(500).json({ error: 'Database write error: ' + err.message });

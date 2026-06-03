@@ -90,10 +90,14 @@ export async function bootstrapDb(): Promise<void> {
     const rulesCount = await client.query('SELECT COUNT(*) FROM commission_rules');
     if (parseInt(rulesCount.rows[0].count) === 0) {
       await client.query(
-        `INSERT INTO commission_rules (id, base_salary, per_booking, per_deposit_collected, per_show_up, target_bookings, bonus_amount)
-         VALUES ('default', $1, $2, $3, $4, $5, $6)`,
-        [DEFAULT_RULES.baseSalary, DEFAULT_RULES.perBooking, DEFAULT_RULES.perDepositCollected,
-         DEFAULT_RULES.perShowUp, DEFAULT_RULES.targetBookings, DEFAULT_RULES.bonusAmount]
+        `INSERT INTO commission_rules
+           (id, base_salary, per_booking, per_deposit_collected, per_show_up,
+            target_bookings, bonus_amount,
+            per_show_up_high, per_show_up_low, per_po_high, per_po_low, hourly_rate, po_threshold)
+         VALUES ('default', 0, 0, 0, 0, 0, 0, $1, $2, $3, $4, $5, $6)`,
+        [DEFAULT_RULES.perShowUpHigh, DEFAULT_RULES.perShowUpLow,
+         DEFAULT_RULES.perPoHigh, DEFAULT_RULES.perPoLow,
+         DEFAULT_RULES.hourlyRate, DEFAULT_RULES.poThreshold]
       );
     }
 
@@ -107,6 +111,42 @@ export async function bootstrapDb(): Promise<void> {
         );
       }
     }
+
+    await client.query(`
+      ALTER TABLE leads_reporting
+        ADD COLUMN IF NOT EXISTS city VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS visit_cost NUMERIC(12,2) DEFAULT 2090
+    `);
+
+    await client.query(`
+      ALTER TABLE marketing_users
+        ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
+    `);
+
+    await client.query(`
+      ALTER TABLE commission_rules
+        ADD COLUMN IF NOT EXISTS per_show_up_high NUMERIC(12,2) DEFAULT 350,
+        ADD COLUMN IF NOT EXISTS per_show_up_low  NUMERIC(12,2) DEFAULT 200,
+        ADD COLUMN IF NOT EXISTS per_po_high      NUMERIC(12,2) DEFAULT 150,
+        ADD COLUMN IF NOT EXISTS per_po_low       NUMERIC(12,2) DEFAULT 100,
+        ADD COLUMN IF NOT EXISTS hourly_rate      NUMERIC(12,2) DEFAULT 85,
+        ADD COLUMN IF NOT EXISTS po_threshold     INT           DEFAULT 140
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS work_sessions (
+        id               BIGSERIAL PRIMARY KEY,
+        manager_name     VARCHAR(255) NOT NULL,
+        started_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        ended_at         TIMESTAMPTZ,
+        break_started_at TIMESTAMPTZ,
+        total_break_secs INT NOT NULL DEFAULT 0
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_work_sessions_manager
+        ON work_sessions(manager_name, started_at DESC)
+    `);
 
     client.release();
     db.isConnected = true;

@@ -60,6 +60,43 @@ export default function App() {
     return () => clearInterval(id);
   }, [isAuthenticated, refreshLeads]);
 
+  // Heartbeat: update last_seen_at every 60s while tab is active
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser) return;
+    const name = currentUser.name;
+
+    // Immediate heartbeat on mount
+    api.auth.heartbeat(name).catch(() => {});
+
+    // Heartbeat every 60s regardless of tab visibility — open tab = user is around
+    const id = setInterval(() => {
+      api.auth.heartbeat(name).catch(() => {});
+    }, 60_000);
+
+    // Extra heartbeat when user switches back to this tab after being away
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
+        api.auth.heartbeat(name).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+
+    // Mark offline instantly when tab closes (sendBeacon survives unload)
+    const handleUnload = () => {
+      navigator.sendBeacon(
+        '/api/auth/logout',
+        new Blob([JSON.stringify({ name })], { type: 'application/json' })
+      );
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [isAuthenticated, currentUser]);
+
   const handleLogin = useCallback((user: StaffMember) => {
     setCurrentUser(user);
     setAuth(true);

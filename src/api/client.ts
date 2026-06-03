@@ -1,4 +1,4 @@
-import type { LeadReport, CommissionRules, StaffMember } from '../types';
+import type { LeadReport, CommissionRules, StaffMember, ShiftSession } from '../types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -53,5 +53,24 @@ export const api = {
       }),
     logout: (name: string) =>
       request<{ success: boolean }>('/api/auth/logout', { method: 'POST', body: JSON.stringify({ name }) }),
+    heartbeat: (name: string) =>
+      request<{ success: boolean }>('/api/auth/heartbeat', { method: 'POST', body: JSON.stringify({ name }) }),
+  },
+
+  shifts: {
+    active: (name: string) =>
+      request<{ active: boolean; session: ShiftSession | null; todayPriorSeconds: number }>(`/api/shifts/active?name=${encodeURIComponent(name)}`),
+    start: (name: string) =>
+      request<{ success: boolean; session: ShiftSession | null }>('/api/shifts/start', { method: 'POST', body: JSON.stringify({ name }) }),
+    end: (name: string) =>
+      request<{ success: boolean; workedSeconds: number }>('/api/shifts/end', { method: 'POST', body: JSON.stringify({ name }) }),
+    breakStart: (name: string) =>
+      request<{ success: boolean }>('/api/shifts/break/start', { method: 'POST', body: JSON.stringify({ name }) }),
+    breakEnd: (name: string) =>
+      request<{ success: boolean }>('/api/shifts/break/end', { method: 'POST', body: JSON.stringify({ name }) }),
+    monthly: (name: string, year: number, month: number) =>
+      request<{ totalSeconds: number }>(`/api/shifts/monthly?name=${encodeURIComponent(name)}&year=${year}&month=${month}`),
+    monthlyAll: (year: number, month: number) =>
+      request<Record<string, number>>(`/api/shifts/monthly-all?year=${year}&month=${month}`),
   },
 };

@@ -5,7 +5,6 @@ import { readLocalUsers, writeLocalUsers } from '../localFallback';
 const router = Router();
 
 // In-memory rate limiter: max 10 attempts per IP per minute
-// NOTE: For multi-instance deployments, replace with Redis-backed rate limiting
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(ip: string): boolean {
@@ -50,7 +49,7 @@ router.post('/login', async (req, res) => {
           avatarColor: row.avatar_color, status: 'online', lastActive: 'В сети',
         };
         await db.pool.query(
-          'UPDATE marketing_users SET status = $1, last_active = $2 WHERE name = $3',
+          'UPDATE marketing_users SET status = $1, last_active = $2, last_seen_at = NOW() WHERE name = $3',
           ['online', 'В сети', row.name]
         );
       }
@@ -70,6 +69,7 @@ router.post('/login', async (req, res) => {
       if (idx >= 0) {
         users[idx].status = 'online';
         users[idx].lastActive = 'В сети';
+        users[idx].lastSeenAt = new Date().toISOString();
         writeLocalUsers(users);
       }
     }
@@ -86,13 +86,14 @@ router.post('/logout', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.json({ success: true });
 
-  const lastActive = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ' назад';
-
   if (db.pool && db.isConnected) {
     try {
+      // Set last_seen_at far in the past so status immediately reads as offline
       await db.pool.query(
-        'UPDATE marketing_users SET status = $1, last_active = $2 WHERE name = $3',
-        ['offline', lastActive, name]
+        `UPDATE marketing_users
+         SET status = 'offline', last_active = $1, last_seen_at = NOW() - interval '1 year'
+         WHERE name = $2`,
+        [new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ' назад', name]
       );
     } catch (err) {
       console.error('[Auth] DB logout error:', err);
@@ -102,7 +103,33 @@ router.post('/logout', async (req, res) => {
     const idx = users.findIndex((u: any) => u.name === name);
     if (idx >= 0) {
       users[idx].status = 'offline';
-      users[idx].lastActive = lastActive;
+      users[idx].lastSeenAt = null;
+      writeLocalUsers(users);
+    }
+  }
+  res.json({ success: true });
+});
+
+// POST /api/auth/heartbeat  — called every ~60s by the client while active
+router.post('/heartbeat', async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ success: false });
+
+  if (db.pool && db.isConnected) {
+    try {
+      await db.pool.query(
+        `UPDATE marketing_users SET last_seen_at = NOW(), status = 'online', last_active = 'В сети' WHERE name = $1`,
+        [name]
+      );
+    } catch (err) {
+      console.error('[Auth] Heartbeat error:', err);
+    }
+  } else {
+    const users = readLocalUsers();
+    const idx = users.findIndex((u: any) => u.name === name);
+    if (idx >= 0) {
+      users[idx].status = 'online';
+      users[idx].lastSeenAt = new Date().toISOString();
       writeLocalUsers(users);
     }
   }

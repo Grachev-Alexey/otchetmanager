@@ -4,10 +4,11 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 
 import { bootstrapDb, db } from './server/db';
-import authRouter  from './server/routes/auth';
-import leadsRouter from './server/routes/leads';
-import rulesRouter from './server/routes/rules';
-import usersRouter from './server/routes/users';
+import authRouter   from './server/routes/auth';
+import leadsRouter  from './server/routes/leads';
+import rulesRouter  from './server/routes/rules';
+import usersRouter  from './server/routes/users';
+import shiftsRouter from './server/routes/shifts';
 
 dotenv.config();
 
@@ -16,10 +17,11 @@ const PORT = parseInt(process.env.PORT || '5000');
 
 app.use(express.json());
 
-app.use('/api/auth',  authRouter);
-app.use('/api/leads', leadsRouter);
-app.use('/api/rules', rulesRouter);
-app.use('/api/users', usersRouter);
+app.use('/api/auth',   authRouter);
+app.use('/api/leads',  leadsRouter);
+app.use('/api/rules',  rulesRouter);
+app.use('/api/users',  usersRouter);
+app.use('/api/shifts', shiftsRouter);
 
 app.get('/api/db-status', (_req, res) => {
   res.json({

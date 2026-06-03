@@ -3,12 +3,12 @@ import { api } from '../api/client';
 import type { LeadReport, CommissionRules, StaffMember } from '../types';
 
 const INITIAL_RULES: CommissionRules = {
-  baseSalary: 40000,
-  perBooking: 1000,
-  perDepositCollected: 1500,
-  perShowUp: 2000,
-  targetBookings: 15,
-  bonusAmount: 10000,
+  perShowUpHigh: 350,
+  perShowUpLow:  200,
+  perPoHigh:     150,
+  perPoLow:      100,
+  hourlyRate:    85,
+  poThreshold:   140,
 };
 
 export function useData() {

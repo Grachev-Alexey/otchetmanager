@@ -4,59 +4,20 @@
     "role": "admin",
     "pin": "1111",
     "department": "Руководитель",
-    "bio": "Управление KPI, структурой и бюджетом",
+    "bio": "",
     "avatarColor": "from-indigo-500 to-indigo-700",
-    "status": "online",
-    "lastActive": "В сети"
-  },
-  {
-    "name": "Мария С.",
-    "role": "admin",
-    "pin": "2222",
-    "department": "Тех. Администратор",
-    "bio": "Аудит и верификация AmoCRM статусов",
-    "avatarColor": "from-purple-500 to-pink-500",
-    "status": "online",
-    "lastActive": "10 мин назад"
-  },
-  {
-    "name": "Алина К.",
-    "role": "manager",
-    "pin": "3333",
-    "department": "Старший лид-менеджер",
-    "bio": "Специалист по работе с клиентами повышенной категории",
-    "avatarColor": "from-emerald-400 to-teal-500",
-    "status": "online",
-    "lastActive": "В сети"
-  },
-  {
-    "name": "Иван П.",
-    "role": "manager",
-    "pin": "4444",
-    "department": "Лид-менеджер",
-    "bio": "Фокус на закрытии предоплат и визитов",
-    "avatarColor": "from-blue-500 to-indigo-500",
     "status": "offline",
-    "lastActive": "1 час назад"
+    "lastActive": "15:34 назад"
   },
   {
-    "name": "Маргарита Д.",
+    "name": "Григорьева Мария",
     "role": "manager",
-    "pin": "5555",
-    "department": "Лид-менеджер",
-    "bio": "Работа с повторными контактами и холодным трафиком",
-    "avatarColor": "from-amber-400 to-orange-500",
+    "pin": "2222",
+    "department": "Отдел продаж",
+    "bio": "",
+    "avatarColor": "from-blue-500 to-indigo-500",
     "status": "online",
-    "lastActive": "3 мин назад"
-  },
-  {
-    "name": "Сергей В.",
-    "role": "manager",
-    "pin": "6666",
-    "department": "Лид-менеджер",
-    "bio": "Ведение сделок со сложными условиями финансирования",
-    "avatarColor": "from-cyan-400 to-blue-500",
-    "status": "online",
-    "lastActive": "В сети"
+    "lastActive": "В сети",
+    "lastSeenAt": "2026-06-03T17:01:20.855Z"
   }
 ]

@@ -9,12 +9,12 @@ export const RULES_FILE = path.join(DATA_DIR, 'rules.json');
 export const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 export const DEFAULT_RULES = {
-  baseSalary: 40000,
-  perBooking: 1000,
-  perDepositCollected: 1500,
-  perShowUp: 2000,
-  targetBookings: 15,
-  bonusAmount: 10000,
+  perShowUpHigh: 350,
+  perShowUpLow:  200,
+  perPoHigh:     150,
+  perPoLow:      100,
+  hourlyRate:    85,
+  poThreshold:   140,
 };
 
 export const DEFAULT_USERS = [

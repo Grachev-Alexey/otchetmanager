@@ -1,6 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, Users, Sliders, FileText, Settings, Sparkles, LogOut } from 'lucide-react';
 import type { StaffMember } from '../types';
+import ShiftWidget from './ShiftWidget';
 
 type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management';
 
@@ -28,13 +29,10 @@ export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLead
         <div className="p-6 border-b border-neutral-100/40">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-white/50 border border-neutral-200/50 shrink-0 shadow-sm">
-              <Sparkles className="w-4 h-4 text-neutral-800 animate-pulse" />
+              <Sparkles className="w-4 h-4 text-neutral-800" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-display font-bold text-neutral-950 uppercase tracking-widest leading-none">Виви Маркетинг</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-ping" />
-              </div>
+              <span className="text-xs font-display font-bold text-neutral-950 uppercase tracking-widest leading-none">Виви Маркетинг</span>
             </div>
           </div>
 
@@ -52,6 +50,13 @@ export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLead
             </div>
           </div>
         </div>
+
+        {/* Shift widget — managers only */}
+        {currentUser.role === 'manager' && (
+          <div className="pt-4 border-b border-neutral-100/40 pb-4">
+            <ShiftWidget managerName={currentUser.name} />
+          </div>
+        )}
 
         <nav className="p-5 space-y-1">
           {navItems.map(item => {

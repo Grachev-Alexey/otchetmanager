@@ -6,24 +6,25 @@ export interface LeadReport {
   clientName: string;
   clientPhone?: string;
   amocrmLeadId?: string;
-  bookingDate: string; // ISO date string YYYY-MM-DD
+  bookingDate: string;
   status: LeadStatus;
   city?: string;
   depositRequired: boolean;
   depositAmount: number;
   depositPaid: boolean;
+  visitCost?: number;
   comments?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface CommissionRules {
-  baseSalary: number;
-  perBooking: number;
-  perDepositCollected: number;
-  perShowUp: number;
-  targetBookings: number;
-  bonusAmount: number;
+  perShowUpHigh: number;  // ставка за визит при ПО > порога
+  perShowUpLow:  number;  // ставка за визит при ПО ≤ порога
+  perPoHigh:     number;  // ставка за запись при ПО > порога
+  perPoLow:      number;  // ставка за запись при ПО ≤ порога
+  hourlyRate:    number;  // ставка за час работы
+  poThreshold:   number;  // порог ПО для смены ставок
 }
 
 export interface DbStatus {
@@ -46,16 +47,22 @@ export interface StaffMember {
   bio: string;
 }
 
+export interface ShiftSession {
+  id: number;
+  managerName: string;
+  startedAt: string;
+  endedAt: string | null;
+  breakStartedAt: string | null;
+  totalBreakSecs: number;
+}
+
 export interface ManagerPerformance {
   managerName: string;
   totalBookings: number;
   totalDeposits: number;
   totalShowUps: number;
   totalNoShows: number;
-  earnedCommissions: number;
-  isBonusAchieved: boolean;
-  bonusEarned: number;
-  totalSalary: number;
+  workedSeconds: number;
+  earnedSalary: number;
   leads: LeadReport[];
 }
-
