@@ -1,0 +1,1 @@
+- [Project architecture](architecture.md) — full modular structure: server/routes, src/pages, src/hooks, src/api; key conventions and production-readiness decisions.

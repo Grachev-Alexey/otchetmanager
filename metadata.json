@@ -1,6 +1,0 @@
-{
-  "name": "Виви Маркетинг",
-  "description": "Портал регистрации записей, визитов, предоплат клиентов и расчета ведомостей KPI лид-менеджеров.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
