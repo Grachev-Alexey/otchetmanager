@@ -1,0 +1,89 @@
+
+> react-example@0.0.0 dev
+> tsx server.ts
+
+[1G[0K◇ injected env (0) from .env [2m// tip: ⌁ auth for agents [www.vestauth.com][0m
+◇ injected env (0) from .env [2m// tip: ⌘ custom filepath { path: '/custom/path/.env' }[0m
+[DB] Connected to PostgreSQL.
+[DB] Tables bootstrapped successfully.
+Server running on http://localhost:5000
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:21:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/replit/agent/.latest.json[22m
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:21:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/whKY5733iVpEKuACoTI2U/start_application.shell.exec.0[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/LoginPage.tsx, /src/index.css[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/whKY5733iVpEKuACoTI2U/start_application.shell.exec.0[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/replit/agent/.latest.json[22m
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/whKY5733iVpEKuACoTI2U/start_application.shell.exec.0[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/replit/agent/transcript/5747e013-3f4e-4aed-b5da-62bdbf3d57d2/transcript.jsonl[22m
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m2:22:51 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.local/state/workflow-logs/whKY5733iVpEKuACoTI2U/start_application.shell.exec.0[22m

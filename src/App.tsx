@@ -1,0 +1,232 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+
+import { useData }           from './hooks/useData';
+import { api }               from './api/client';
+import type { LeadReport, CommissionRules, StaffMember } from './types';
+
+import LoginPage             from './pages/LoginPage';
+import DashboardPage         from './pages/DashboardPage';
+import LeadsPage             from './pages/LeadsPage';
+import StaffDirectoryPage    from './pages/StaffDirectoryPage';
+import UserManagementPage    from './pages/UserManagementPage';
+import Sidebar               from './components/Sidebar';
+import Header                from './components/Header';
+import SalarySummary         from './components/SalarySummary';
+
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management';
+
+const SESSION_KEY = 'vivi_marketing_session';
+
+const PAGE_TRANSITION = {
+  initial:    { opacity: 0, y: 12 },
+  animate:    { opacity: 1, y: 0 },
+  exit:       { opacity: 0, y: -12 },
+  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+};
+
+export default function App() {
+  const { leads, rules, allUsers, loading, refreshLeads, refreshRules, refreshUsers, initialize } = useData();
+
+  const [currentUser, setCurrentUser]   = useState<StaffMember | null>(null);
+  const [isAuthenticated, setAuth]      = useState(false);
+  const [activeMenu, setActiveMenu]     = useState<ActiveMenu>('dashboard');
+  const [isFormOpen, setIsFormOpen]     = useState(false);
+  const [editingLead, setEditingLead]   = useState<LeadReport | null>(null);
+
+  // Initial load + restore session
+  useEffect(() => {
+    initialize().then(() => {
+      try {
+        const stored = localStorage.getItem(SESSION_KEY);
+        if (stored) {
+          const user = JSON.parse(stored) as StaffMember;
+          setCurrentUser(user);
+          setAuth(true);
+        }
+      } catch {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Light polling for leads only when authenticated and tab is visible
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshLeads();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [isAuthenticated, refreshLeads]);
+
+  const handleLogin = useCallback((user: StaffMember) => {
+    setCurrentUser(user);
+    setAuth(true);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    // Refresh all data right after login to pick up any server-side changes
+    Promise.all([refreshLeads(), refreshRules(), refreshUsers()]);
+  }, [refreshLeads, refreshRules, refreshUsers]);
+
+  const handleLogout = useCallback(async () => {
+    if (currentUser) {
+      api.auth.logout(currentUser.name).catch(() => {});
+    }
+    setAuth(false);
+    setCurrentUser(null);
+    setActiveMenu('dashboard');
+    setIsFormOpen(false);
+    setEditingLead(null);
+    localStorage.removeItem(SESSION_KEY);
+  }, [currentUser]);
+
+  const handleSaveLead = useCallback(async (lead: LeadReport): Promise<boolean> => {
+    try {
+      await api.leads.save(lead);
+      await refreshLeads();
+      setIsFormOpen(false);
+      setEditingLead(null);
+      return true;
+    } catch (err) {
+      console.error('[App] Save lead error:', err);
+      return false;
+    }
+  }, [refreshLeads]);
+
+  const handleDeleteLead = useCallback(async (id: string): Promise<void> => {
+    try {
+      await api.leads.delete(id);
+      await refreshLeads();
+    } catch (err) {
+      console.error('[App] Delete lead error:', err);
+    }
+  }, [refreshLeads]);
+
+  const handleSaveRules = useCallback(async (newRules: CommissionRules): Promise<boolean> => {
+    try {
+      await api.rules.save(newRules);
+      await refreshRules();
+      return true;
+    } catch (err) {
+      console.error('[App] Save rules error:', err);
+      return false;
+    }
+  }, [refreshRules]);
+
+  const handleEditLead = useCallback((lead: LeadReport) => {
+    setEditingLead(lead);
+    setIsFormOpen(true);
+    setActiveMenu('leads');
+  }, []);
+
+  const navigate = useCallback((menu: ActiveMenu) => {
+    setActiveMenu(menu);
+    if (menu !== 'leads') { setIsFormOpen(false); setEditingLead(null); }
+  }, []);
+
+  const toggleForm = useCallback(() => {
+    setEditingLead(null);
+    setIsFormOpen(open => !open);
+    setActiveMenu('leads');
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50/60 via-slate-50 to-indigo-100/25 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin mx-auto" />
+          <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Загрузка системы...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  const myLeadsCount = currentUser.role === 'admin'
+    ? leads.length
+    : leads.filter(l => l.managerName === currentUser.name).length;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50/80 via-indigo-50/20 to-slate-100/60 text-slate-800 flex flex-col lg:flex-row antialiased font-sans">
+      <Sidebar
+        currentUser={currentUser}
+        activeMenu={activeMenu}
+        onNavigate={navigate}
+        totalLeadsCount={myLeadsCount}
+        totalUsersCount={allUsers.length}
+        onLogout={handleLogout}
+      />
+
+      <main className="flex-1 flex flex-col min-w-0 z-10 relative">
+        <Header
+          activeMenu={activeMenu}
+          isFormOpen={isFormOpen}
+          onToggleForm={toggleForm}
+        />
+
+        <div className="flex-1 p-5 lg:p-8 max-w-7xl mx-auto w-full">
+          <AnimatePresence mode="wait">
+            {activeMenu === 'dashboard' && (
+              <motion.div key="dashboard" {...PAGE_TRANSITION}>
+                <DashboardPage
+                  leads={leads}
+                  rules={rules}
+                  allUsers={allUsers}
+                  currentUser={currentUser}
+                  onNavigate={navigate}
+                />
+              </motion.div>
+            )}
+
+            {activeMenu === 'leads' && (
+              <motion.div key="leads" {...PAGE_TRANSITION}>
+                <LeadsPage
+                  leads={leads}
+                  currentUser={currentUser}
+                  allUsers={allUsers}
+                  isFormOpen={isFormOpen}
+                  editingLead={editingLead}
+                  onSaveLead={handleSaveLead}
+                  onDeleteLead={handleDeleteLead}
+                  onEditLead={handleEditLead}
+                  onCloseForm={() => { setIsFormOpen(false); setEditingLead(null); }}
+                />
+              </motion.div>
+            )}
+
+            {activeMenu === 'salary' && (
+              <motion.div key="salary" {...PAGE_TRANSITION}>
+                <SalarySummary
+                  leads={leads}
+                  rules={rules}
+                  onSaveRules={handleSaveRules}
+                  currentUserRole={currentUser.role}
+                  currentManagerName={currentUser.name}
+                />
+              </motion.div>
+            )}
+
+            {activeMenu === 'staff_directory' && (
+              <motion.div key="staff" {...PAGE_TRANSITION}>
+                <StaffDirectoryPage allUsers={allUsers} leads={leads} />
+              </motion.div>
+            )}
+
+            {activeMenu === 'user_management' && currentUser.role === 'admin' && (
+              <motion.div key="users" {...PAGE_TRANSITION}>
+                <UserManagementPage
+                  allUsers={allUsers}
+                  currentUserName={currentUser.name}
+                  onRefresh={refreshUsers}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+    </div>
+  );
+}

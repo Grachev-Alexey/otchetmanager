@@ -1,0 +1,9 @@
+
+> react-example@0.0.0 dev
+> tsx server.ts
+
+[1G[0K◇ injected env (0) from .env [2m// tip: ⌘ multiple files { path: ['.env.local', '.env'] }[0m
+◇ injected env (0) from .env [2m// tip: ⌁ auth for agents [www.vestauth.com][0m
+[DB] Connected to PostgreSQL.
+[DB] Tables bootstrapped successfully.
+Server running on http://localhost:5000
