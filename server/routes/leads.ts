@@ -131,7 +131,7 @@ router.get('/checkin', async (req, res) => {
         lr.id, lr.manager_name, lr.client_name, lr.client_phone,
         lr.amocrm_lead_id, lr.booking_date, lr.status, lr.city,
         lr.deposit_required, lr.deposit_amount, lr.deposit_paid,
-        lr.visit_cost, lr.comments, lr.created_at,
+        lr.is_referral, lr.visit_cost, lr.comments, lr.created_at,
         yr.attendance  AS yclients_attendance,
         yr.staff_name  AS yclients_staff,
         yr.deleted     AS yclients_deleted,
@@ -272,6 +272,7 @@ router.post('/', async (req, res) => {
         visit_cost = EXCLUDED.visit_cost,
         comments = EXCLUDED.comments,
         updated_at = EXCLUDED.updated_at
+        -- created_at намеренно не обновляется при редактировании
     `, [leadId, managerName, clientName, clientPhone || '', amocrmLeadId || '',
         bookingDate, finalStatus, city || '', !!depositRequired, depositAmount || 0,
         !!depositPaid, !!isReferral, visitCost != null ? visitCost : 2090, comments || '', now, now]);

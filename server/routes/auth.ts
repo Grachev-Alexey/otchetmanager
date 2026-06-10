@@ -29,17 +29,16 @@ router.post('/login', async (req, res) => {
   }
 
   const { name, pin } = req.body;
-  if (!pin) {
-    return res.status(400).json({ success: false, error: 'ПИН-код обязателен' });
+  if (!name || !pin) {
+    return res.status(400).json({ success: false, error: 'Имя и ПИН-код обязательны' });
   }
   if (!db.pool || !db.isConnected) return dbRequired(res);
 
   try {
-    const query = name
-      ? 'SELECT * FROM marketing_users WHERE name = $1 AND pin = $2'
-      : 'SELECT * FROM marketing_users WHERE pin = $1';
-    const params = name ? [name, pin] : [pin];
-    const result = await db.pool.query(query, params);
+    const result = await db.pool.query(
+      'SELECT * FROM marketing_users WHERE name = $1 AND pin = $2',
+      [name, pin]
+    );
 
     if (result.rows.length === 0) {
       return res.status(401).json({ success: false, error: 'Неверный ПИН-код' });
@@ -47,10 +46,9 @@ router.post('/login', async (req, res) => {
 
     const row = result.rows[0];
     const matchedUser = {
-      id: row.id ? Number(row.id) : undefined,
-      name: row.name,
-      role: row.role,
-      pin: row.pin,
+      id:         row.id ? Number(row.id) : undefined,
+      name:       row.name,
+      role:       row.role,
       department: row.department,
     };
     return res.json({ success: true, user: matchedUser });

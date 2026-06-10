@@ -21,11 +21,11 @@ function fmtHours(secs: number): string {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
 }
 
-function calcSalary(showUps: number, deposits: number, workedSecs: number, rules: CommissionRules): number {
-  const over      = deposits > rules.poThreshold;
+function calcSalary(showUps: number, totalDeposits: number, weightedDeposits: number, workedSecs: number, rules: CommissionRules): number {
+  const over      = totalDeposits > (rules.poThreshold ?? 140);
   const visitRate = over ? rules.perShowUpHigh : rules.perShowUpLow;
   const poRate    = over ? rules.perPoHigh     : rules.perPoLow;
-  return showUps * visitRate + (workedSecs / 3600) * rules.hourlyRate + deposits * poRate;
+  return showUps * visitRate + (workedSecs / 3600) * rules.hourlyRate + weightedDeposits * poRate;
 }
 
 function prevMonth(year: number, month: number): [number, number] {
@@ -41,8 +41,8 @@ export default function SalarySummary({
   const now = new Date();
   const [prevY, prevM] = prevMonth(now.getFullYear(), now.getMonth() + 1);
 
-  const [selectedYear, setSelectedYear]   = useState(prevY);
-  const [selectedMonth, setSelectedMonth] = useState(prevM);
+  const [selectedYear, setSelectedYear]   = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
   const [isEditingRules, setIsEditingRules] = useState(false);
   const [editedRules, setEditedRules]       = useState<CommissionRules>({ ...rules });
@@ -91,12 +91,11 @@ export default function SalarySummary({
   const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1;
   const isPrevMonthSelected = selectedYear === prevY && selectedMonth === prevM;
 
-  // Filter leads by selected period
-  const periodLeads = leads.filter(l => {
-    if (!l.bookingDate) return false;
-    const d = new Date(l.bookingDate);
-    return d.getFullYear() === selectedYear && d.getMonth() + 1 === selectedMonth;
-  });
+  // Filter leads by selected period — string comparison avoids timezone edge cases
+  const periodPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const periodLeads = leads.filter(l =>
+    l.bookingDate && String(l.bookingDate).slice(0, 7) === periodPrefix
+  );
 
   const managers = currentUserRole === 'admin'
     ? Array.from(new Set(leads.map(l => l.managerName).filter(Boolean)))
@@ -106,14 +105,14 @@ export default function SalarySummary({
     const ml              = periodLeads.filter(l => l.managerName === managerName);
     const totalBookings   = ml.length;
     // showed_up counts as both a visit AND a deposit (client arrived = deposit credit)
-    const regularDeposits = ml.filter(l => (l.depositPaid || l.status === 'showed_up') && !l.isReferral).length;
-    const referralDeposits = ml.filter(l => (l.depositPaid || l.status === 'showed_up') && l.isReferral).length;
+    const regularDeposits = ml.filter(l => (l.yookassaPaid || l.status === 'showed_up') && !l.isReferral).length;
+    const referralDeposits = ml.filter(l => (l.yookassaPaid || l.status === 'showed_up') && l.isReferral).length;
     const totalDeposits   = regularDeposits + referralDeposits;
     const weightedDeposits = regularDeposits + referralDeposits * 2;
     const totalShowUps    = ml.filter(l => l.status === 'showed_up').length;
     const totalNoShows    = ml.filter(l => l.status === 'no_show').length;
     const workedSeconds   = monthlyHours[managerName] ?? 0;
-    const earnedSalary    = calcSalary(totalShowUps, weightedDeposits, workedSeconds, rules);
+    const earnedSalary    = calcSalary(totalShowUps, totalDeposits, weightedDeposits, workedSeconds, rules);
     return { managerName, totalBookings, totalDeposits, totalShowUps, totalNoShows, workedSeconds, earnedSalary, leads: ml, referralDeposits };
   });
 

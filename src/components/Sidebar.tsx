@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Users, Sliders, Settings, Sparkles, LogOut, ClipboardCheck, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Users, Sliders, Settings, LogOut, ClipboardCheck, CalendarClock } from 'lucide-react';
 import type { StaffMember } from '../types';
 import ShiftWidget from './ShiftWidget';
 
@@ -31,8 +31,10 @@ export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLead
       <div>
         <div className="p-6 border-b border-neutral-100/40">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-white/50 border border-neutral-200/50 shrink-0 shadow-sm">
-              <Sparkles className="w-4 h-4 text-neutral-800" />
+            <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center shadow-sm overflow-hidden" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}>
+              <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-6 h-6">
+                <text x="14" y="21" fontFamily="system-ui, -apple-system, sans-serif" fontSize="19" fontWeight="900" fill="white" textAnchor="middle">В</text>
+              </svg>
             </div>
             <div className="min-w-0">
               <span className="text-xs font-display font-bold text-neutral-950 uppercase tracking-widest leading-none">Виви Маркетинг</span>

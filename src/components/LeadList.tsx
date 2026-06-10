@@ -1,247 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LeadReport, LeadStatus } from '../types';
 import {
   Search, Edit3, Trash2, Calendar, Phone,
-  Layers, CheckCircle2, XCircle, Info, ChevronDown,
-  Banknote, ChevronLeft, ChevronRight, CalendarDays, Star
+  Layers, CheckCircle2, XCircle, Info,
+  Banknote, Star
 } from 'lucide-react';
-
-const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const MONTHS_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-const DAYS_SHORT = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+import { FilterDatePicker, PortalSelect } from './ui';
 
 function todayMsk(): string {
   return new Date().toLocaleDateString('sv', { timeZone: 'Europe/Moscow' });
-}
-
-function parseDateStr(str: string): Date | null {
-  if (!str) return null;
-  const [y, m, d] = str.split('-').map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-}
-
-function toDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function fmtDate(str: string): string {
-  const d = parseDateStr(str);
-  if (!d) return 'Все записи';
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function FilterDatePicker({
-  valueFrom, valueTo, onChange, label,
-}: {
-  valueFrom: string;
-  valueTo: string;
-  onChange: (from: string, to: string) => void;
-  label: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [selecting, setSelecting] = useState<string | null>(null);
-  const [hoverDate, setHoverDate] = useState<string | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const today = todayMsk();
-
-  const initDate = parseDateStr(valueFrom) || new Date();
-  const [viewYear, setViewYear] = useState(initDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initDate.getMonth());
-
-  const updatePos = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 8, left: r.left });
-    }
-  };
-
-  const handleOpen = () => {
-    if (!open) { updatePos(); setSelecting(null); setHoverDate(null); }
-    setOpen(o => !o);
-  };
-
-  const handleClose = () => { setOpen(false); setSelecting(null); setHoverDate(null); };
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      const target = e.target as Node;
-      if (
-        btnRef.current && !btnRef.current.contains(target) &&
-        dropRef.current && !dropRef.current.contains(target)
-      ) handleClose();
-    }
-    function handleScroll() { updatePos(); }
-    document.addEventListener('mousedown', handleClick);
-    window.addEventListener('scroll', handleScroll, true);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      window.removeEventListener('scroll', handleScroll, true);
-    };
-  }, [open]);
-
-  const firstDay = new Date(viewYear, viewMonth, 1);
-  const lastDay = new Date(viewYear, viewMonth + 1, 0);
-  let startDow = firstDay.getDay() - 1;
-  if (startDow < 0) startDow = 6;
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < startDow; i++) cells.push(null);
-  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  function prevMonth() {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-    else setViewMonth(m => m - 1);
-  }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-    else setViewMonth(m => m + 1);
-  }
-
-  const handleDayClick = (dateStr: string) => {
-    if (!selecting) {
-      setSelecting(dateStr);
-    } else {
-      const from = selecting < dateStr ? selecting : dateStr;
-      const to   = selecting < dateStr ? dateStr : selecting;
-      onChange(from, to);
-      setSelecting(null);
-      setHoverDate(null);
-      setOpen(false);
-    }
-  };
-
-  const rangeFrom = selecting || valueFrom;
-  const rangeTo   = selecting ? (hoverDate || '') : valueTo;
-
-  const isActive = !!(valueFrom || valueTo);
-
-  const displayLabel = (() => {
-    if (selecting) return `${fmtDate(selecting)} →`;
-    if (!valueFrom) return 'Все';
-    if (!valueTo || valueFrom === valueTo) return fmtDate(valueFrom);
-    return `${fmtDate(valueFrom)} — ${fmtDate(valueTo)}`;
-  })();
-
-  return (
-    <div className="relative flex items-center">
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={handleOpen}
-        className={`text-xs pl-3 pr-7 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
-          isActive
-            ? 'bg-neutral-950 text-white border-neutral-950'
-            : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-700'
-        }`}
-      >
-        <CalendarDays className={`w-3 h-3 shrink-0 ${isActive ? 'text-white/70' : 'text-neutral-400'}`} />
-        <span className={`font-medium ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>{label}</span>
-        <span className={isActive ? 'text-white/40' : 'text-neutral-300'}>·</span>
-        <span className="font-bold">{displayLabel}</span>
-      </button>
-      <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${isActive ? 'text-white/60' : 'text-neutral-400'}`} />
-
-      {open && createPortal(
-        <div
-          ref={dropRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="bg-white border border-neutral-100 rounded-2xl shadow-2xl p-4 w-72"
-        >
-          {/* Quick actions */}
-          <div className="flex gap-2 mb-3 pb-3 border-b border-neutral-100">
-            <button
-              type="button"
-              onClick={() => { onChange('', ''); setSelecting(null); handleClose(); }}
-              className={`flex-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                !valueFrom && !valueTo && !selecting ? 'bg-neutral-950 text-white' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50 border border-neutral-150'
-              }`}
-            >
-              Все записи
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const d = parseDateStr(today) || new Date();
-                setViewYear(d.getFullYear());
-                setViewMonth(d.getMonth());
-                onChange(today, today);
-                setSelecting(null);
-                handleClose();
-              }}
-              className={`flex-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                valueFrom === today && valueTo === today ? 'bg-indigo-600 text-white' : 'text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
-              }`}
-            >
-              Сегодня
-            </button>
-          </div>
-
-          {/* Hint */}
-          <div className="mb-2 text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400 h-4">
-            {selecting ? 'Выберите конечную дату' : 'Выберите начальную дату'}
-          </div>
-
-          {/* Month navigation */}
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer">
-              <ChevronLeft className="w-4 h-4 text-neutral-500" />
-            </button>
-            <span className="text-sm font-bold text-neutral-800">{MONTHS_RU[viewMonth]} {viewYear}</span>
-            <button type="button" onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer">
-              <ChevronRight className="w-4 h-4 text-neutral-500" />
-            </button>
-          </div>
-
-          {/* Day headers */}
-          <div className="grid grid-cols-7 mb-1">
-            {DAYS_SHORT.map(d => (
-              <div key={d} className="text-center text-[10px] font-bold text-neutral-400 py-1">{d}</div>
-            ))}
-          </div>
-
-          {/* Days grid */}
-          <div className="grid grid-cols-7 gap-y-0.5">
-            {cells.map((day, i) => {
-              if (!day) return <div key={i} />;
-              const dateStr = toDateStr(new Date(viewYear, viewMonth, day));
-              const effectiveFrom = rangeFrom < rangeTo ? rangeFrom : rangeTo;
-              const effectiveTo   = rangeFrom < rangeTo ? rangeTo : rangeFrom;
-              const isStart   = dateStr === effectiveFrom && !!effectiveFrom;
-              const isEnd     = dateStr === effectiveTo && !!effectiveTo && effectiveTo !== effectiveFrom;
-              const isInRange = !!effectiveFrom && !!effectiveTo && dateStr > effectiveFrom && dateStr < effectiveTo;
-              const isToday   = today === dateStr;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleDayClick(dateStr)}
-                  onMouseEnter={() => selecting && setHoverDate(dateStr)}
-                  onMouseLeave={() => selecting && setHoverDate(null)}
-                  className={`text-xs font-medium py-1.5 transition-colors duration-75 cursor-pointer relative
-                    ${isStart || isEnd
-                      ? 'bg-indigo-600 text-white font-bold rounded-lg'
-                      : isInRange
-                        ? 'bg-indigo-50 text-indigo-700 rounded-none'
-                        : isToday
-                          ? 'bg-neutral-100 text-neutral-800 font-bold rounded-lg'
-                          : 'hover:bg-neutral-100 text-neutral-700 rounded-lg'
-                    }`}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      , document.body)}
-    </div>
-  );
 }
 
 interface LeadListProps {
@@ -256,23 +24,18 @@ interface LeadListProps {
 const PAGE_SIZE = 50;
 
 export default function LeadList({
-  leads,
-  onEdit,
-  onDelete,
-  currentUserRole,
-  currentManagerName,
-  shiftActive,
+  leads, onEdit, onDelete, currentUserRole, currentManagerName, shiftActive,
 }: LeadListProps) {
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput]     = useState('');
+  const [search, setSearch]               = useState('');
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [managerFilter, setManagerFilter] = useState<string>('all');
   const [bookingDateFrom, setBookingDateFrom] = useState<string>('');
-  const [bookingDateTo, setBookingDateTo] = useState<string>('');
+  const [bookingDateTo,   setBookingDateTo]   = useState<string>('');
   const [createdAtFrom, setCreatedAtFrom] = useState<string>(() => todayMsk());
-  const [createdAtTo, setCreatedAtTo] = useState<string>(() => todayMsk());
+  const [createdAtTo,   setCreatedAtTo]   = useState<string>(() => todayMsk());
   const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid' | 'not_required'>('all');
-  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  const [pageSize, setPageSize]           = useState(PAGE_SIZE);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 200);
@@ -301,18 +64,12 @@ export default function LeadList({
 
   const getStatusConfig = (status: LeadStatus) => {
     switch (status) {
-      case 'booked':
-        return { text: 'Запись создана', icon: Calendar, colorClasses: 'bg-indigo-50 border-indigo-200/50 text-indigo-700 font-semibold' };
-      case 'rescheduled':
-        return { text: 'Запись перенесена', icon: Info, colorClasses: 'bg-amber-50 border-amber-200/50 text-amber-700 font-semibold' };
-      case 'showed_up':
-        return { text: 'Пришёл', icon: CheckCircle2, colorClasses: 'bg-emerald-50 border-emerald-200/50 text-emerald-700 font-semibold' };
-      case 'no_show':
-        return { text: 'Не пришёл', icon: XCircle, colorClasses: 'bg-rose-50 border-rose-200/50 text-rose-700' };
-      case 'cancelled':
-        return { text: 'Отменена', icon: XCircle, colorClasses: 'bg-slate-50 border-slate-200 text-slate-500 font-medium' };
-      default:
-        return { text: status, icon: Info, colorClasses: 'bg-neutral-50 border-neutral-200 text-neutral-600' };
+      case 'booked':       return { text: 'Запись создана',  icon: Calendar,    colorClasses: 'bg-indigo-50 border-indigo-200/50 text-indigo-700 font-semibold' };
+      case 'rescheduled':  return { text: 'Запись перенесена', icon: Info,       colorClasses: 'bg-amber-50 border-amber-200/50 text-amber-700 font-semibold' };
+      case 'showed_up':    return { text: 'Пришёл',          icon: CheckCircle2, colorClasses: 'bg-emerald-50 border-emerald-200/50 text-emerald-700 font-semibold' };
+      case 'no_show':      return { text: 'Не пришёл',       icon: XCircle,      colorClasses: 'bg-rose-50 border-rose-200/50 text-rose-700' };
+      case 'cancelled':    return { text: 'Отменена',         icon: XCircle,     colorClasses: 'bg-slate-50 border-slate-200 text-slate-500 font-medium' };
+      default:             return { text: status,             icon: Info,         colorClasses: 'bg-neutral-50 border-neutral-200 text-neutral-600' };
     }
   };
 
@@ -332,43 +89,48 @@ export default function LeadList({
     return authorizedLeads.filter(lead => {
       const searchMatch = !search ||
         lead.clientName.toLowerCase().includes(term) ||
-        (lead.clientPhone && lead.clientPhone.includes(term)) ||
-        (lead.amocrmLeadId && lead.amocrmLeadId.toLowerCase().includes(term));
+        (lead.clientPhone    && lead.clientPhone.includes(term)) ||
+        (lead.amocrmLeadId   && lead.amocrmLeadId.toLowerCase().includes(term));
 
       const statusMatch = statusFilters.size === 0 || (() => {
-        if (statusFilters.has('waiting') && (lead.status === 'booked' || lead.status === 'rescheduled')) return true;
-        if (statusFilters.has('showed_up') && lead.status === 'showed_up') return true;
-        if (statusFilters.has('no_show') && lead.status === 'no_show') return true;
+        if (statusFilters.has('waiting')   && (lead.status === 'booked' || lead.status === 'rescheduled')) return true;
+        if (statusFilters.has('showed_up') && lead.status === 'showed_up')  return true;
+        if (statusFilters.has('no_show')   && lead.status === 'no_show')    return true;
         return false;
       })();
 
       const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
 
       const bd = String(lead.bookingDate).slice(0, 10);
-      const bookingDateMatch = (!bookingDateFrom && !bookingDateTo) ||
-        (bookingDateFrom && bookingDateTo ? bd >= bookingDateFrom && bd <= bookingDateTo :
-         bookingDateFrom ? bd >= bookingDateFrom : bd <= bookingDateTo);
+      const bookingDateMatch = (!bookingDateFrom && !bookingDateTo) || (
+        bookingDateFrom && bookingDateTo
+          ? bd >= bookingDateFrom && bd <= bookingDateTo
+          : bookingDateFrom ? bd >= bookingDateFrom : bd <= bookingDateTo
+      );
 
       const cd = lead.createdAt ? lead.createdAt.slice(0, 10) : '';
-      const createdAtMatch = (!createdAtFrom && !createdAtTo) ||
-        (createdAtFrom && createdAtTo ? cd >= createdAtFrom && cd <= createdAtTo :
-         createdAtFrom ? cd >= createdAtFrom : cd <= createdAtTo);
+      const createdAtMatch = (!createdAtFrom && !createdAtTo) || (
+        createdAtFrom && createdAtTo
+          ? cd >= createdAtFrom && cd <= createdAtTo
+          : createdAtFrom ? cd >= createdAtFrom : cd <= createdAtTo
+      );
 
       let depositMatch = true;
-      if (depositFilter === 'paid') {
-        depositMatch = !!lead.depositRequired && !!lead.yookassaPaid;
-      } else if (depositFilter === 'not_paid') {
-        depositMatch = !!lead.depositRequired && !lead.yookassaPaid;
-      } else if (depositFilter === 'not_required') {
-        depositMatch = !lead.depositRequired;
-      }
+      if (depositFilter === 'paid')         depositMatch = !!lead.yookassaPaid;
+      else if (depositFilter === 'not_paid' || depositFilter === 'not_required') depositMatch = !lead.yookassaPaid;
 
       return searchMatch && statusMatch && managerMatch && bookingDateMatch && createdAtMatch && depositMatch;
     });
   }, [authorizedLeads, search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, currentUserRole]);
 
   const defaultCreatedAt = todayMsk();
-  const hasActiveFilters = !!(bookingDateFrom || bookingDateTo) || createdAtFrom !== defaultCreatedAt || createdAtTo !== defaultCreatedAt || managerFilter !== 'all' || statusFilters.size > 0 || !!searchInput || depositFilter !== 'all';
+  const hasActiveFilters = !!(bookingDateFrom || bookingDateTo)
+    || createdAtFrom !== defaultCreatedAt
+    || createdAtTo   !== defaultCreatedAt
+    || managerFilter !== 'all'
+    || statusFilters.size > 0
+    || !!searchInput
+    || depositFilter !== 'all';
 
   const resetFilters = useCallback(() => {
     setBookingDateFrom('');
@@ -383,7 +145,7 @@ export default function LeadList({
   }, [defaultCreatedAt]);
 
   const visibleLeads = filteredLeads.slice(0, pageSize);
-  const hasMore = pageSize < filteredLeads.length;
+  const hasMore      = pageSize < filteredLeads.length;
 
   return (
     <div className="space-y-6">
@@ -405,27 +167,17 @@ export default function LeadList({
 
         {/* Row 1: dates + manager + reset */}
         <div className="flex flex-wrap items-center gap-2 z-10">
-          <FilterDatePicker label="Создана" valueFrom={createdAtFrom} valueTo={createdAtTo} onChange={(f, t) => { setCreatedAtFrom(f); setCreatedAtTo(t); }} />
-          <FilterDatePicker label="Визит" valueFrom={bookingDateFrom} valueTo={bookingDateTo} onChange={(f, t) => { setBookingDateFrom(f); setBookingDateTo(t); }} />
+          <FilterDatePicker label="Создана"  valueFrom={createdAtFrom}    valueTo={createdAtTo}    onChange={(f,t) => { setCreatedAtFrom(f);    setCreatedAtTo(t);    }} />
+          <FilterDatePicker label="Визит"    valueFrom={bookingDateFrom}  valueTo={bookingDateTo}  onChange={(f,t) => { setBookingDateFrom(f);  setBookingDateTo(t);  }} />
 
           {currentUserRole === 'admin' && (
-            <div className="relative flex items-center">
-              <select
-                value={managerFilter}
-                onChange={(e) => setManagerFilter(e.target.value)}
-                className={`text-[10px] font-bold pl-3 pr-7 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 appearance-none ${
-                  managerFilter !== 'all'
-                    ? 'bg-neutral-950 text-white border-neutral-950'
-                    : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-600'
-                }`}
-              >
-                <option value="all">Все менеджеры</option>
-                {uniqueManagers.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${managerFilter !== 'all' ? 'text-white/60' : 'text-neutral-400'}`} />
-            </div>
+            <PortalSelect
+              value={managerFilter}
+              onChange={setManagerFilter}
+              options={uniqueManagers.map(m => ({ value: m, label: m }))}
+              allLabel="Все менеджеры"
+              allValue="all"
+            />
           )}
 
           {hasActiveFilters && (
@@ -438,23 +190,19 @@ export default function LeadList({
           )}
         </div>
 
-        {/* Row 2: status group + deposit group — each wraps as a unit */}
+        {/* Row 2: status group + deposit group */}
         <div className="flex flex-wrap gap-2 z-10">
 
           {/* Status group */}
           <div className="flex bg-white/70 border border-neutral-200/60 rounded-xl p-1 gap-1 shadow-3xs">
             {[
-              { id: 'waiting', label: 'Ждём визит' },
+              { id: 'waiting',   label: 'Ждём визит' },
               { id: 'showed_up', label: 'Пришёл' },
-              { id: 'no_show', label: 'Не пришёл' },
+              { id: 'no_show',   label: 'Не пришёл' },
             ].map(btn => (
-              <button
-                key={btn.id}
-                onClick={() => toggleStatus(btn.id)}
+              <button key={btn.id} onClick={() => toggleStatus(btn.id)}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 cursor-pointer whitespace-nowrap select-none ${
-                  statusFilters.has(btn.id)
-                    ? 'bg-neutral-950 text-white'
-                    : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
+                  statusFilters.has(btn.id) ? 'bg-neutral-950 text-white' : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
                 }`}
               >
                 {btn.label}
@@ -465,18 +213,14 @@ export default function LeadList({
           {/* Deposit group */}
           <div className="flex bg-white/70 border border-neutral-200/60 rounded-xl p-1 gap-1 shadow-3xs">
             {([
-              { id: 'all', label: 'Предоплата: все' },
-              { id: 'paid', label: 'Внесена' },
-              { id: 'not_paid', label: 'Не внесена' },
+              { id: 'all',          label: 'Предоплата: все' },
+              { id: 'paid',         label: 'Внесена' },
+              { id: 'not_paid',     label: 'Не внесена' },
               { id: 'not_required', label: 'Не требуется' },
             ] as { id: 'all' | 'paid' | 'not_paid' | 'not_required'; label: string }[]).map(btn => (
-              <button
-                key={btn.id}
-                onClick={() => setDepositFilter(btn.id)}
+              <button key={btn.id} onClick={() => setDepositFilter(btn.id)}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 cursor-pointer whitespace-nowrap select-none flex items-center gap-1 ${
-                  depositFilter === btn.id
-                    ? 'bg-neutral-950 text-white'
-                    : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
+                  depositFilter === btn.id ? 'bg-neutral-950 text-white' : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
                 }`}
               >
                 {btn.id === 'paid' && <Banknote className="w-3 h-3 shrink-0" />}
@@ -492,11 +236,7 @@ export default function LeadList({
       <div className="space-y-4">
         <AnimatePresence mode="sync">
           {filteredLeads.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
               className="spatial-glass rounded-3xl p-14 text-center relative overflow-hidden"
             >
               <Layers className="w-8 h-8 text-neutral-400 mx-auto mb-3 animate-pulse" />
@@ -508,15 +248,13 @@ export default function LeadList({
           ) : (
             visibleLeads.map((lead, idx) => {
               const statusConfig = getStatusConfig(lead.status);
-              const StatusIcon = statusConfig.icon;
-              const deletable = canDelete(lead);
+              const StatusIcon   = statusConfig.icon;
+              const deletable    = canDelete(lead);
 
               return (
                 <motion.div
                   key={lead.id || `lead-${idx}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
                   className="spatial-glass rounded-2xl p-5 relative shadow-3xs"
                 >
@@ -537,16 +275,14 @@ export default function LeadList({
 
                       {(currentUserRole === 'admin' || shiftActive !== false) && (
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => onEdit(lead)}
+                          <button onClick={() => onEdit(lead)}
                             className="px-3 py-2 bg-white/70 border border-neutral-200 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 text-[10px] font-bold uppercase tracking-wider text-neutral-600 rounded-xl cursor-pointer transition-colors duration-150 flex items-center gap-1.5 shadow-4xs"
                           >
                             <Edit3 className="w-3 h-3" />
                             Изменить
                           </button>
                           {deletable && (
-                            <button
-                              onClick={() => lead.id && onDelete(lead.id)}
+                            <button onClick={() => lead.id && onDelete(lead.id)}
                               className="p-2 border border-neutral-150/50 bg-white/40 hover:bg-rose-500 hover:text-white text-neutral-400 rounded-xl shadow-3xs transition-colors duration-150 cursor-pointer"
                               title="Удалить"
                             >
@@ -634,8 +370,7 @@ export default function LeadList({
 
         {hasMore && (
           <div className="pt-2 pb-1 text-center">
-            <button
-              onClick={() => setPageSize(p => p + PAGE_SIZE)}
+            <button onClick={() => setPageSize(p => p + PAGE_SIZE)}
               className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:text-neutral-800 border border-neutral-200/60 bg-white/60 hover:bg-white px-6 py-2.5 rounded-xl cursor-pointer transition-colors shadow-3xs"
             >
               Показать ещё — {filteredLeads.length - visibleLeads.length} из {filteredLeads.length}

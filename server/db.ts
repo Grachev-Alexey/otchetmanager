@@ -24,11 +24,11 @@ if (viviUrl) {
     db.pool = new pg.Pool({
       connectionString: viviUrl,
       ssl: false,
-      connectionTimeoutMillis: 8000,
-      max: 8,
-      min: 1,
-      idleTimeoutMillis: 30_000,
-      allowExitOnIdle: true,
+      connectionTimeoutMillis: 10_000,
+      max: 20,
+      min: 2,
+      idleTimeoutMillis: 60_000,
+      allowExitOnIdle: false,
     });
     db.status.provider = 'postgres';
     db.status.connectionInfo = '77.95.201.27:5432/vivi-n8n-stat';

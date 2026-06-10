@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CheckCircle, XCircle, RefreshCw, Phone, Banknote,
-  Edit3, Search, MapPin, Star, Eye, EyeOff,
-  ChevronDown, X,
+  Edit3, Search, MapPin, Star, Eye, EyeOff, X,
 } from 'lucide-react';
 import type { CheckinLead, StaffMember } from '../types';
 import { api } from '../api/client';
+import { FilterDatePicker, PortalSelect } from '../components/ui';
 
 interface Props {
   currentUser: StaffMember;
@@ -197,9 +197,9 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
         if (ycFilter === 'no_show_ycl' && (l.yclientsDeleted || l.yclientsAttendance !== -1))              return false;
       }
 
-      if (depFilter === 'paid'       && !l.yookassaPaid)                              return false;
-      if (depFilter === 'not_paid'   && !(l.depositRequired && !l.yookassaPaid))      return false;
-      if (depFilter === 'no_deposit' && l.depositRequired)                            return false;
+      if (depFilter === 'paid'       && !l.yookassaPaid)   return false;
+      if (depFilter === 'not_paid'   && !!l.yookassaPaid)  return false;
+      if (depFilter === 'no_deposit' && !!l.yookassaPaid)  return false;
 
       return true;
     });
@@ -306,39 +306,21 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
               >{p.label}</button>
             );
           })}
-          <span className="text-neutral-300 text-[10px] font-medium">или</span>
-          <input
-            type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            title="С"
-            className={`text-xs px-2.5 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 w-[130px] ${
-              dateFrom ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-700'
-            }`}
-          />
-          <span className="text-neutral-300 text-xs">—</span>
-          <input
-            type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            title="По"
-            className={`text-xs px-2.5 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 w-[130px] ${
-              dateTo ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-700'
-            }`}
+          <FilterDatePicker
+            label="Период"
+            valueFrom={dateFrom}
+            valueTo={dateTo}
+            onChange={(f, t) => { setDateFrom(f); setDateTo(t); }}
           />
 
           {isAdmin && (
-            <div className="relative flex items-center">
-              <select
-                value={managerFilter}
-                onChange={e => setManagerFilter(e.target.value)}
-                className={`text-[10px] font-bold pl-3 pr-7 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 appearance-none ${
-                  managerFilter !== 'all'
-                    ? 'bg-neutral-950 text-white border-neutral-950'
-                    : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-600'
-                }`}
-              >
-                <option value="all">Все менеджеры</option>
-                {uniqueManagers.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${managerFilter !== 'all' ? 'text-white/60' : 'text-neutral-400'}`} />
-            </div>
+            <PortalSelect
+              value={managerFilter}
+              onChange={setManagerFilter}
+              options={uniqueManagers.map(m => ({ value: m, label: m }))}
+              allLabel="Все менеджеры"
+              allValue="all"
+            />
           )}
 
           {hasFilters && (

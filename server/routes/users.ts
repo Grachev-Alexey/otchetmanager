@@ -7,10 +7,9 @@ const USERS_KEY = 'users:all';
 
 function mapRow(row: any) {
   return {
-    id: row.id ? Number(row.id) : undefined,
-    name: row.name,
-    role: row.role,
-    pin: row.pin,
+    id:         row.id ? Number(row.id) : undefined,
+    name:       row.name,
+    role:       row.role,
     department: row.department,
   };
 }
@@ -55,22 +54,30 @@ router.post('/', async (req, res) => {
 
   try {
     if (id) {
-      await db.pool.query(
-        `UPDATE marketing_users SET name = $1, role = $2, pin = $3, department = $4 WHERE id = $5`,
-        [name, role, pin, dept, id]
-      );
-      if (originalName && originalName !== name) {
-        await Promise.all([
-          db.pool.query(
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `UPDATE marketing_users SET name = $1, role = $2, pin = $3, department = $4 WHERE id = $5`,
+          [name, role, pin, dept, id]
+        );
+        if (originalName && originalName !== name) {
+          await client.query(
             `UPDATE leads_reporting SET manager_name = $1 WHERE manager_name = $2`,
             [name, originalName]
-          ),
-          db.pool.query(
+          );
+          await client.query(
             `UPDATE work_sessions SET manager_name = $1 WHERE manager_name = $2`,
             [name, originalName]
-          ),
-        ]);
-        cache.del('leads:all');
+          );
+          cache.del('leads:all');
+        }
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
       }
     } else {
       await db.pool.query(

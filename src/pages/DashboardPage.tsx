@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, CheckCircle2, Award, Activity, Sliders, CornerDownRight, Clock } from 'lucide-react';
+import { Calendar, CheckCircle2, Award, Activity, Sliders, CornerDownRight, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LeadReport, CommissionRules, StaffMember } from '../types';
 import { api } from '../api/client';
 
@@ -13,12 +13,13 @@ interface Props {
   onNavigate: (menu: ActiveMenu) => void;
 }
 
-// ПО = предоплаты (depositPaid === true)
-function calcSalary(showUps: number, deposits: number, workedSecs: number, rules: CommissionRules): number {
-  const over      = deposits > rules.poThreshold;
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+function calcSalary(showUps: number, totalDeposits: number, weightedDeposits: number, workedSecs: number, rules: CommissionRules): number {
+  const over      = totalDeposits > (rules.poThreshold ?? 140);
   const visitRate = over ? rules.perShowUpHigh : rules.perShowUpLow;
   const poRate    = over ? rules.perPoHigh     : rules.perPoLow;
-  return showUps * visitRate + (workedSecs / 3600) * rules.hourlyRate + deposits * poRate;
+  return showUps * visitRate + (workedSecs / 3600) * rules.hourlyRate + weightedDeposits * poRate;
 }
 
 function fmtHours(secs: number): string {
@@ -28,43 +29,108 @@ function fmtHours(secs: number): string {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
 }
 
+function prevMonth(year: number, month: number): [number, number] {
+  return month === 1 ? [year - 1, 12] : [year, month - 1];
+}
+function nextMonth(year: number, month: number): [number, number] {
+  return month === 12 ? [year + 1, 1] : [year, month + 1];
+}
+
+function filterByMonth(leads: LeadReport[], year: number, month: number): LeadReport[] {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`;
+  return leads.filter(l => l.bookingDate && String(l.bookingDate).slice(0, 7) === prefix);
+}
+
 export default function DashboardPage({ leads, rules, allUsers, currentUser, onNavigate }: Props) {
-  const myLeads          = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
-  const totalCount       = myLeads.length;
-  const showUps          = myLeads.filter(l => l.status === 'showed_up').length;
-  // showed_up counts as both a visit AND a deposit (client arrived = deposit credit)
-  const regularDeposits  = myLeads.filter(l => (l.depositPaid || l.status === 'showed_up') && !l.isReferral).length;
-  const referralDeposits = myLeads.filter(l => (l.depositPaid || l.status === 'showed_up') && l.isReferral).length;
+  const now = new Date();
+  const [selectedYear, setSelectedYear]   = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+
+  const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1;
+  const [prevY, prevM] = prevMonth(now.getFullYear(), now.getMonth() + 1);
+  const isPrevMonth = selectedYear === prevY && selectedMonth === prevM;
+
+  const goToPrev = () => { const [y, m] = prevMonth(selectedYear, selectedMonth); setSelectedYear(y); setSelectedMonth(m); };
+  const goToNext = () => {
+    const [y, m] = nextMonth(selectedYear, selectedMonth);
+    if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) return;
+    setSelectedYear(y); setSelectedMonth(m);
+  };
+
+  const myLeads    = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
+  const monthLeads = filterByMonth(myLeads, selectedYear, selectedMonth);
+
+  // Stats for the selected period
+  const totalCount       = monthLeads.length;
+  const showUps          = monthLeads.filter(l => l.status === 'showed_up').length;
+  const regularDeposits  = monthLeads.filter(l => (l.yookassaPaid || l.status === 'showed_up') && !l.isReferral).length;
+  const referralDeposits = monthLeads.filter(l => (l.yookassaPaid || l.status === 'showed_up') && l.isReferral).length;
   const deposits         = regularDeposits + referralDeposits;
   const weightedDeposits = regularDeposits + referralDeposits * 2;
-  const depositSum       = myLeads.reduce((s, l) => s + (l.depositPaid ? l.depositAmount : 0), 0);
-  const noShows          = myLeads.filter(l => l.status === 'no_show').length;
+  const depositSum       = monthLeads.reduce((s, l) => s + (l.yookassaPaid ? (l.yookassaAmount || 0) : 0), 0);
+  const noShows          = monthLeads.filter(l => l.status === 'no_show').length;
   const arrivalRate      = totalCount > 0 ? (showUps / totalCount) * 100 : 0;
   const noShowRate       = totalCount > 0 ? Math.round((noShows / totalCount) * 100) : 0;
 
-  // Worked hours this month for manager view
   const [workedSecs, setWorkedSecs] = useState(0);
-  // Hours per manager for admin view
-  const [allHours, setAllHours] = useState<Record<string, number>>({});
+  const [allHours, setAllHours]     = useState<Record<string, number>>({});
 
   useEffect(() => {
-    const now = new Date();
     if (currentUser.role === 'manager') {
-      api.shifts.monthly(currentUser.name, now.getFullYear(), now.getMonth() + 1)
+      api.shifts.monthly(currentUser.name, selectedYear, selectedMonth)
         .then(({ totalSeconds }) => setWorkedSecs(totalSeconds))
         .catch(() => {});
     } else {
-      api.shifts.monthlyAll(now.getFullYear(), now.getMonth() + 1)
+      api.shifts.monthlyAll(selectedYear, selectedMonth)
         .then(data => setAllHours(data))
         .catch(() => {});
     }
-  }, [currentUser]);
+  }, [currentUser, selectedYear, selectedMonth]);
 
-  const salary = calcSalary(showUps, weightedDeposits, workedSecs, rules);
+  const salary = calcSalary(showUps, deposits, weightedDeposits, workedSecs, rules);
   const overPo = deposits > (rules.poThreshold ?? 140);
 
   return (
     <div className="space-y-6">
+
+      {/* Period selector */}
+      <div className="spatial-glass rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <button onClick={goToPrev}
+            className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-200 cursor-pointer shadow-sm">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="min-w-[160px] text-center">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-950">
+              {MONTHS_RU[selectedMonth - 1]} {selectedYear}
+            </p>
+          </div>
+          <button onClick={goToNext} disabled={isCurrentMonth}
+            className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-200 cursor-pointer shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setSelectedYear(prevY); setSelectedMonth(prevM); }}
+            className={`px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wider rounded-xl border cursor-pointer transition duration-200 ${isPrevMonth ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 text-neutral-500 border-neutral-200/60 hover:border-neutral-950 hover:text-neutral-950'}`}
+          >
+            Прошлый месяц
+          </button>
+          <button
+            onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth() + 1); }}
+            className={`px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wider rounded-xl border cursor-pointer transition duration-200 ${isCurrentMonth ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 text-neutral-500 border-neutral-200/60 hover:border-neutral-950 hover:text-neutral-950'}`}
+          >
+            Текущий месяц
+          </button>
+        </div>
+
+        <div className="sm:ml-auto text-[9px] font-bold uppercase tracking-widest text-neutral-400">
+          {totalCount} {totalCount === 1 ? 'запись' : totalCount >= 2 && totalCount <= 4 ? 'записи' : 'записей'} за период
+        </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="spatial-glass rounded-2xl p-6 shadow-sm flex flex-col justify-between">
@@ -75,11 +141,11 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
             </div>
             <div className="mt-5 flex items-baseline gap-2">
               <p className="text-3xl font-display font-bold text-neutral-950 tracking-tight leading-none">{totalCount}</p>
-              <span className="text-[10.5px] text-neutral-400 font-bold uppercase tracking-wider">всего</span>
+              <span className="text-[10.5px] text-neutral-400 font-bold uppercase tracking-wider">за период</span>
             </div>
           </div>
           <div className="mt-5 border-t border-neutral-100/40 pt-3 flex items-center justify-between text-[10.5px] text-neutral-500 font-medium">
-            <span>Всего записей</span>
+            <span>{MONTHS_RU[selectedMonth - 1]} {selectedYear}</span>
           </div>
         </div>
 
@@ -144,7 +210,9 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
       {currentUser.role === 'manager' && (
         <div className="spatial-glass rounded-2xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-neutral-100/40">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-950">Моя зарплата в этом месяце</h3>
+            <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-950">
+              Моя зарплата — {MONTHS_RU[selectedMonth - 1]} {selectedYear}
+            </h3>
             <div className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider self-start sm:self-auto ${overPo ? 'bg-indigo-50 text-indigo-800 border border-indigo-200' : 'bg-neutral-100 text-neutral-400 border border-neutral-200/60'}`}>
               {overPo ? `ПО > ${rules.poThreshold} — повышенная ставка` : `ПО ≤ ${rules.poThreshold} — базовая ставка`}
             </div>
@@ -161,10 +229,13 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
             <div>
               <p className="text-[8.5px] uppercase font-bold tracking-widest text-neutral-400 leading-none">Предоплаты (ПО)</p>
               <p className="text-xl font-display font-bold text-neutral-950 mt-2">
-                +{(deposits * (overPo ? rules.perPoHigh : rules.perPoLow)).toLocaleString()} ₽
+                +{(weightedDeposits * (overPo ? rules.perPoHigh : rules.perPoLow)).toLocaleString()} ₽
               </p>
               <p className="text-[10px] text-neutral-400 mt-1">
-                {deposits} × {overPo ? rules.perPoHigh : rules.perPoLow} ₽
+                {weightedDeposits} × {overPo ? rules.perPoHigh : rules.perPoLow} ₽
+                {referralDeposits > 0 && (
+                  <span className="ml-1 text-amber-600">(в т.ч. {referralDeposits} реф. ×2)</span>
+                )}
                 <span className={`ml-2 text-[8px] font-bold px-1.5 py-0.5 rounded border ${overPo ? 'text-indigo-600 bg-indigo-50 border-indigo-200' : 'text-neutral-400 bg-white border-neutral-200'}`}>
                   ПО {deposits}/{rules.poThreshold ?? 140}
                 </span>
@@ -191,12 +262,10 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
       {currentUser.role === 'admin' && (
         <div className="p-6 spatial-glass rounded-2xl shadow-sm space-y-5">
           <div className="pb-4 border-b border-neutral-100/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-950 flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-neutral-950 animate-pulse" />
-                Результаты работы и зарплаты
-              </h3>
-            </div>
+            <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-950 flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-neutral-950 animate-pulse" />
+              Результаты работы и зарплаты — {MONTHS_RU[selectedMonth - 1]} {selectedYear}
+            </h3>
             <button onClick={() => onNavigate('salary')}
               className="flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-widest text-neutral-950 hover:text-white hover:bg-neutral-950 bg-neutral-100/30 border border-neutral-200/50 px-3.5 py-2 rounded-xl cursor-pointer transition-colors duration-200">
               Подробнее <CornerDownRight className="w-3.5 h-3.5" />
@@ -205,13 +274,16 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
 
           <div className="space-y-4 pt-1">
             {allUsers.filter(s => s.role === 'manager').map(manager => {
-              const ml        = leads.filter(l => l.managerName === manager.name);
-              const bookings  = ml.length;
-              const showUpsM  = ml.filter(l => l.status === 'showed_up').length;
-              const deps      = ml.filter(l => l.depositPaid || l.status === 'showed_up').length;
-              const mHours    = allHours[manager.name] ?? 0;
-              const sal       = calcSalary(showUpsM, deps, mHours, rules);
-              const over      = deps > (rules.poThreshold ?? 140);
+              const ml      = filterByMonth(leads.filter(l => l.managerName === manager.name), selectedYear, selectedMonth);
+              const bookings = ml.length;
+              const showUpsM = ml.filter(l => l.status === 'showed_up').length;
+              const regDeps  = ml.filter(l => (l.yookassaPaid || l.status === 'showed_up') && !l.isReferral).length;
+              const refDeps  = ml.filter(l => (l.yookassaPaid || l.status === 'showed_up') && l.isReferral).length;
+              const deps     = regDeps + refDeps;
+              const wDeps    = regDeps + refDeps * 2;
+              const mHours   = allHours[manager.name] ?? 0;
+              const sal      = calcSalary(showUpsM, deps, wDeps, mHours, rules);
+              const over     = deps > (rules.poThreshold ?? 140);
 
               return (
                 <div key={manager.name} className="p-4 bg-white/40 border border-white/60 hover:bg-white/60 rounded-xl hover:shadow-sm transition-colors duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
@@ -232,7 +304,11 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
                         )}
                       </div>
                       <p className="text-[11px] text-neutral-500 mt-2 font-medium">
-                        Записей: <strong className="text-neutral-950">{bookings}</strong> &bull; Визиты: <strong className="text-emerald-700">{showUpsM}</strong> &bull; ПО (предоплаты): <strong className="text-amber-700">{deps}</strong> &bull; <Clock className="w-2.5 h-2.5 inline text-neutral-400" /> {mHours > 0 ? fmtHours(mHours) : '—'}
+                        Записей: <strong className="text-neutral-950">{bookings}</strong>
+                        {' · '}Визиты: <strong className="text-emerald-700">{showUpsM}</strong>
+                        {' · '}ПО: <strong className="text-amber-700">{deps}</strong>
+                        {refDeps > 0 && <span className="text-amber-500"> (+{refDeps} реф.)</span>}
+                        {' · '}<Clock className="w-2.5 h-2.5 inline text-neutral-400" /> {mHours > 0 ? fmtHours(mHours) : '—'}
                       </p>
                     </div>
                   </div>
