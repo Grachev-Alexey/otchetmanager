@@ -14,6 +14,8 @@ export interface LeadReport {
   depositPaid: boolean;
   visitCost?: number;
   comments?: string;
+  yookassaPaid?: boolean;
+  yookassaAmount?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

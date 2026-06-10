@@ -3,7 +3,9 @@ import { db } from '../db';
 
 const router = Router();
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// Each session is capped at MAX_SESSION_SECS (16h) to prevent runaway
+// data from forgotten open sessions.
+const MAX_SESSION_SECS = 16 * 3600;
 
 function sessionView(row: any) {
   return {
@@ -16,8 +18,34 @@ function sessionView(row: any) {
   };
 }
 
+// SQL fragment: completed seconds for sessions started today (Moscow time).
+// Only counts sessions with ended_at IS NOT NULL — open/stale sessions are excluded.
+const TODAY_PRIOR_SQL = `
+  SELECT COALESCE(SUM(
+    LEAST(GREATEST(0,
+      EXTRACT(EPOCH FROM (ended_at - started_at))::INT - total_break_secs
+    ), $2)
+  ), 0) AS prior_secs
+  FROM work_sessions
+  WHERE manager_name = $1
+    AND ended_at IS NOT NULL
+    AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
+        = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE
+`;
+
+// Close stale open sessions from PREVIOUS days with zero duration
+// so they don't pollute today's stats.
+const CLOSE_STALE_PREV_DAYS_SQL = `
+  UPDATE work_sessions
+  SET ended_at = started_at
+  WHERE manager_name = $1
+    AND ended_at IS NULL
+    AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
+        < (NOW() AT TIME ZONE 'Europe/Moscow')::DATE
+`;
+
 // ── GET /api/shifts/active?name=X ──────────────────────────────────────────
-// Returns active session + today's already-completed seconds (for cumulative timer)
+// Returns active session (only if started TODAY) + today's prior completed seconds.
 router.get('/active', async (req, res) => {
   const { name } = req.query;
   if (!name || typeof name !== 'string')
@@ -27,26 +55,22 @@ router.get('/active', async (req, res) => {
     return res.json({ active: false, session: null, todayPriorSeconds: 0 });
 
   try {
+    // Close any stale open sessions from previous days (zero duration) so they
+    // don't appear as "active" and don't pollute prior-seconds totals.
+    await db.pool.query(CLOSE_STALE_PREV_DAYS_SQL, [name]);
+
     const [activeR, priorR] = await Promise.all([
+      // Only consider sessions started TODAY as active.
       db.pool.query(
         `SELECT * FROM work_sessions
-         WHERE manager_name = $1 AND ended_at IS NULL
+         WHERE manager_name = $1
+           AND ended_at IS NULL
+           AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
+               = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE
          ORDER BY started_at DESC LIMIT 1`,
         [name]
       ),
-      db.pool.query(
-        `SELECT COALESCE(SUM(
-           LEAST(GREATEST(0,
-             EXTRACT(EPOCH FROM (ended_at - started_at))::INT - total_break_secs
-           ), $2)
-         ), 0) AS prior_secs
-         FROM work_sessions
-         WHERE manager_name = $1
-           AND ended_at IS NOT NULL
-           AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
-               = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE`,
-        [name, MAX_SESSION_SECS]
-      ),
+      db.pool.query(TODAY_PRIOR_SQL, [name, MAX_SESSION_SECS]),
     ]);
 
     const todayPriorSeconds = parseInt(priorR.rows[0].prior_secs);
@@ -60,37 +84,60 @@ router.get('/active', async (req, res) => {
 });
 
 // ── POST /api/shifts/start ─────────────────────────────────────────────────
+// ONE session per manager per calendar day (Moscow time).
+// If a completed session exists for today, it is REOPENED by absorbing the
+// pause duration into total_break_secs — no new row is created.
 router.post('/start', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ success: true, session: null, todayPriorSeconds: 0, fallback: true });
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
-    // Close any stale open sessions (safety guard)
+    // 1. Close stale sessions from previous days (zero duration — don't count).
+    await db.pool.query(CLOSE_STALE_PREV_DAYS_SQL, [name]);
+
+    // 2. Close any stale OPEN session from today with zero duration.
+    //    (todayPriorSeconds is calculated BEFORE this so they're never counted.)
     await db.pool.query(
-      `UPDATE work_sessions SET ended_at = NOW()
+      `UPDATE work_sessions SET ended_at = started_at
        WHERE manager_name = $1 AND ended_at IS NULL`,
       [name]
     );
 
-    // Read today's already-completed seconds AFTER closing stale sessions
-    const priorR = await db.pool.query(
-      `SELECT COALESCE(SUM(
-         LEAST(GREATEST(0,
-           EXTRACT(EPOCH FROM (ended_at - started_at))::INT - total_break_secs
-         ), $2)
-       ), 0) AS prior_secs
-       FROM work_sessions
-       WHERE manager_name = $1
-         AND ended_at IS NOT NULL
-         AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
-             = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE`,
-      [name, MAX_SESSION_SECS]
+    // 3. Try to REOPEN the last real completed session from today.
+    //    Absorb the pause (ended_at → now) into total_break_secs so the
+    //    client timer stays accurate: elapsed = now − started_at − total_break_secs.
+    const reopenR = await db.pool.query(
+      `UPDATE work_sessions
+       SET ended_at      = NULL,
+           break_started_at = NULL,
+           total_break_secs = total_break_secs
+             + GREATEST(0, EXTRACT(EPOCH FROM (NOW() - ended_at))::INT)
+       WHERE id = (
+         SELECT id FROM work_sessions
+         WHERE manager_name = $1
+           AND ended_at IS NOT NULL
+           AND ended_at > started_at
+           AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
+               = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE
+         ORDER BY started_at DESC LIMIT 1
+       )
+       RETURNING *`,
+      [name]
     );
-    const todayPriorSeconds = parseInt(priorR.rows[0].prior_secs);
 
+    if (reopenR.rows.length > 0) {
+      // Session reopened — prior is now 0 (all other today sessions, if any, sum here)
+      const priorR = await db.pool.query(TODAY_PRIOR_SQL, [name, MAX_SESSION_SECS]);
+      const todayPriorSeconds = parseInt(priorR.rows[0].prior_secs);
+      return res.json({ success: true, session: sessionView(reopenR.rows[0]), todayPriorSeconds });
+    }
+
+    // 4. No session to reopen — first start of the day, create new row.
+    const priorR = await db.pool.query(TODAY_PRIOR_SQL, [name, MAX_SESSION_SECS]);
+    const todayPriorSeconds = parseInt(priorR.rows[0].prior_secs);
     const r = await db.pool.query(
       `INSERT INTO work_sessions (manager_name, started_at)
        VALUES ($1, NOW()) RETURNING *`,
@@ -108,10 +155,10 @@ router.post('/end', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ success: true, workedSeconds: 0, fallback: true });
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
-    // If currently on break, close it first
+    // If currently on break, close it first.
     await db.pool.query(
       `UPDATE work_sessions
        SET total_break_secs = total_break_secs +
@@ -141,7 +188,7 @@ router.post('/break/start', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ success: true, fallback: true });
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
     await db.pool.query(
@@ -163,7 +210,7 @@ router.post('/break/end', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ success: true, fallback: true });
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
     await db.pool.query(
@@ -181,11 +228,6 @@ router.post('/break/end', async (req, res) => {
   }
 });
 
-// ── shared CTE for capped session duration ────────────────────────────────
-// Each session is capped at MAX_SESSION_SECS (16h) to prevent runaway
-// data from forgotten open sessions.
-const MAX_SESSION_SECS = 16 * 3600;
-
 // ── GET /api/shifts/monthly?name=X&year=YYYY&month=MM ─────────────────────
 router.get('/monthly', async (req, res) => {
   const { name, year, month } = req.query;
@@ -193,7 +235,7 @@ router.get('/monthly', async (req, res) => {
     return res.status(400).json({ error: 'name, year, month required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ totalSeconds: 0 });
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
     const r = await db.pool.query(
@@ -228,7 +270,7 @@ router.get('/monthly-all', async (req, res) => {
     return res.status(400).json({ error: 'year, month required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({});
+    return res.status(503).json({ error: 'База данных недоступна' });
 
   try {
     const r = await db.pool.query(

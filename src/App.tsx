@@ -279,14 +279,16 @@ export default function App() {
         </div>
       </main>
 
-      {/* Floating sticky button */}
-      <button
-        onClick={openNewForm}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-[0_8px_28px_-4px_rgba(79,70,229,0.55)] hover:shadow-[0_8px_32px_-4px_rgba(79,70,229,0.7)] transition-all duration-200 cursor-pointer text-[11px] uppercase tracking-widest active:scale-95"
-      >
-        <Plus className="w-4 h-4 shrink-0" />
-        <span className="hidden sm:block">Внести запись</span>
-      </button>
+      {/* Floating sticky button — managers only */}
+      {currentUser.role === 'manager' && (
+        <button
+          onClick={openNewForm}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-[0_8px_28px_-4px_rgba(79,70,229,0.55)] hover:shadow-[0_8px_32px_-4px_rgba(79,70,229,0.7)] transition-all duration-200 cursor-pointer text-[11px] uppercase tracking-widest active:scale-95"
+        >
+          <Plus className="w-4 h-4 shrink-0" />
+          <span className="hidden sm:block">Внести запись</span>
+        </button>
+      )}
 
       {/* Modal overlay */}
       <AnimatePresence>

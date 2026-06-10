@@ -19,7 +19,7 @@ export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLead
   const navItems = [
     { id: 'dashboard' as const, label: 'Главная', icon: LayoutDashboard },
     { id: 'leads' as const, label: 'Записи', icon: Users, badge: totalLeadsCount },
-    { id: 'checkin' as const, label: 'Визиты', icon: ClipboardCheck, badge: checkinCount > 0 ? checkinCount : undefined },
+    ...(currentUser.role === 'admin' ? [{ id: 'checkin' as const, label: 'Визиты', icon: ClipboardCheck, badge: checkinCount > 0 ? checkinCount : undefined }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'salary' as const, label: 'Зарплаты', icon: Sliders }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'staff_directory' as const, label: 'Команда', icon: FileText, badge: totalUsersCount }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'user_management' as const, label: 'Настройки', icon: Settings }] : []),

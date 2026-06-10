@@ -397,31 +397,33 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
           </div>
         </div>
 
-        {/* Deposit */}
-        <div className="bg-neutral-50 border border-neutral-100 p-4 rounded-2xl">
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <div className="relative">
-              <input type="checkbox" checked={depositRequired}
-                onChange={(e) => setDepositRequired(e.target.checked)} className="sr-only peer" />
-              <div className="w-5 h-5 rounded-md border-2 border-neutral-300 bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-colors duration-150 flex items-center justify-center">
-                {depositRequired && <Check className="w-3 h-3 text-white" />}
-              </div>
-            </div>
-            <span className="text-sm font-semibold text-neutral-700">Предоплата</span>
-          </label>
-
-          {depositRequired && (
-            <div className="mt-4 max-w-xs">
-              <label className={labelClass}>Сумма (₽)</label>
+        {/* Deposit — admin only */}
+        {currentUserRole === 'admin' && (
+          <div className="bg-neutral-50 border border-neutral-100 p-4 rounded-2xl">
+            <label className="flex items-center gap-3 cursor-pointer select-none">
               <div className="relative">
-                <span className="absolute left-3.5 top-3 text-neutral-400 font-bold text-sm">₽</span>
-                <input type="number" placeholder="300" value={depositAmount || ''}
-                  onChange={(e) => setDepositAmount(parseInt(e.target.value) || 0)}
-                  className="w-full pl-8 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-semibold rounded-xl transition-colors duration-150 text-sm" />
+                <input type="checkbox" checked={depositRequired}
+                  onChange={(e) => setDepositRequired(e.target.checked)} className="sr-only peer" />
+                <div className="w-5 h-5 rounded-md border-2 border-neutral-300 bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-colors duration-150 flex items-center justify-center">
+                  {depositRequired && <Check className="w-3 h-3 text-white" />}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+              <span className="text-sm font-semibold text-neutral-700">Предоплата</span>
+            </label>
+
+            {depositRequired && (
+              <div className="mt-4 max-w-xs">
+                <label className={labelClass}>Сумма (₽)</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-neutral-400 font-bold text-sm">₽</span>
+                  <input type="number" placeholder="300" value={depositAmount || ''}
+                    onChange={(e) => setDepositAmount(parseInt(e.target.value) || 0)}
+                    className="w-full pl-8 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-semibold rounded-xl transition-colors duration-150 text-sm" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Comments */}
         <div>

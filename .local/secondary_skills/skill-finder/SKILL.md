@@ -215,7 +215,7 @@ The catalog below is a snapshot. New skills may be added to the platform at any 
 
 | **repl-seo-optimizer** | Fix SEO issues in your app's code before launch |
 
-| **seo-auditor** | Audit websites for SEO issues |
+| **seo-auditor** | Audit external websites for SEO issues (for the user's own app, run a scan with SEO Agent in the Growth pane) |
 
 | **programmatic-seo** | Build SEO-optimized pages at scale using templates and data |
 

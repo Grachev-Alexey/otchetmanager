@@ -3,6 +3,11 @@ name: whop
 description: Guidelines for using Whop to integrate commerce, payment plans, checkout, and subscription management
 ---
 
+## Read the monetization skill first
+
+Before using anything in this skill, read the `monetization` skill and follow its routing instructions. It is the single source of truth for choosing a payment provider on Replit. Only continue with this Whop skill once the monetization skill has confirmed that Whop is the right provider (either because the user explicitly named Whop, the project already has Whop wired up, or the routing question resolved to Whop).
+
+
 IMPORTANT: You have everything you need. Do NOT ask the user for Whop Company ID, Plan ID, or API key — retrieve them yourself (Step 1 and Step 3 below). Use Whop's hosted checkout (redirect-based) for payments (Step 4). For access control, verify the user's Whop account and ask Whop whether that account has access; do not treat a redirect, email string, or client state as proof of purchase. Execute the steps directly — do not plan or re-read references before acting.
 
 ## Helper scripts — write these first

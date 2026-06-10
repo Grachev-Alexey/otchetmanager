@@ -1,7 +1,5 @@
 import dotenv from 'dotenv';
 import pg from 'pg';
-import dotenv from 'dotenv';
-import { DEFAULT_RULES, DEFAULT_USERS } from './localFallback';
 
 dotenv.config();
 
@@ -9,7 +7,7 @@ export const db = {
   pool: null as pg.Pool | null,
   isConnected: false,
   status: {
-    provider: 'local' as 'local' | 'postgres',
+    provider: 'postgres' as 'local' | 'postgres',
     configured: false,
     error: '',
     connectionInfo: '',
@@ -35,7 +33,7 @@ if (viviUrl) {
     console.error('[DB] Pool init error:', err);
   }
 } else {
-  console.warn('[DB] VIVI_DATABASE_URL is not set — running in local JSON fallback mode. Set the secret to connect to vivi-n8n-stat.');
+  console.error('[DB] VIVI_DATABASE_URL is not set — database unavailable. Set the secret to connect to vivi-n8n-stat.');
 }
 
 export async function bootstrapDb(): Promise<void> {
@@ -87,31 +85,6 @@ export async function bootstrapDb(): Promise<void> {
         last_active VARCHAR(100)
       );
     `);
-
-    const rulesCount = await client.query('SELECT COUNT(*) FROM commission_rules');
-    if (parseInt(rulesCount.rows[0].count) === 0) {
-      await client.query(
-        `INSERT INTO commission_rules
-           (id, base_salary, per_booking, per_deposit_collected, per_show_up,
-            target_bookings, bonus_amount,
-            per_show_up_high, per_show_up_low, per_po_high, per_po_low, hourly_rate, po_threshold)
-         VALUES ('default', 0, 0, 0, 0, 0, 0, $1, $2, $3, $4, $5, $6)`,
-        [DEFAULT_RULES.perShowUpHigh, DEFAULT_RULES.perShowUpLow,
-         DEFAULT_RULES.perPoHigh, DEFAULT_RULES.perPoLow,
-         DEFAULT_RULES.hourlyRate, DEFAULT_RULES.poThreshold]
-      );
-    }
-
-    const usersCount = await client.query('SELECT COUNT(*) FROM marketing_users');
-    if (parseInt(usersCount.rows[0].count) === 0) {
-      for (const u of DEFAULT_USERS) {
-        await client.query(
-          `INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color, status, last_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [u.name, u.role, u.pin, u.department, u.bio, u.avatarColor, u.status, u.lastActive]
-        );
-      }
-    }
 
     await client.query(`
       ALTER TABLE leads_reporting
