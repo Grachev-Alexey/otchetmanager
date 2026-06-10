@@ -28,16 +28,16 @@ router.post('/login', async (req, res) => {
     return res.status(429).json({ success: false, error: 'Слишком много попыток. Подождите минуту.' });
   }
 
-  const { name, pin } = req.body;
-  if (!name || !pin) {
-    return res.status(400).json({ success: false, error: 'Имя и ПИН-код обязательны' });
+  const { pin } = req.body;
+  if (!pin) {
+    return res.status(400).json({ success: false, error: 'ПИН-код обязателен' });
   }
   if (!db.pool || !db.isConnected) return dbRequired(res);
 
   try {
     const result = await db.pool.query(
-      'SELECT * FROM marketing_users WHERE name = $1 AND pin = $2',
-      [name, pin]
+      'SELECT * FROM marketing_users WHERE pin = $1',
+      [pin]
     );
 
     if (result.rows.length === 0) {
