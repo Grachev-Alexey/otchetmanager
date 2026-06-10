@@ -3,11 +3,12 @@
     "name": "Александр Г.",
     "role": "admin",
     "pin": "1111",
-    "department": "Руководитель",
+    "department": "Администратор",
     "bio": "",
-    "avatarColor": "from-indigo-500 to-indigo-700",
-    "status": "offline",
-    "lastActive": "15:34 назад"
+    "avatarColor": "from-indigo-500 to-purple-600",
+    "status": "online",
+    "lastActive": "В сети",
+    "lastSeenAt": "2026-06-08T13:45:43.430Z"
   },
   {
     "name": "Григорьева Мария",
@@ -18,6 +19,6 @@
     "avatarColor": "from-blue-500 to-indigo-500",
     "status": "online",
     "lastActive": "В сети",
-    "lastSeenAt": "2026-06-03T17:01:20.855Z"
+    "lastSeenAt": "2026-06-03T20:28:16.116Z"
   }
 ]

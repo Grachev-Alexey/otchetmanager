@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CommissionRules, LeadReport, ManagerPerformance } from '../types';
-import { Settings, Save, TrendingUp, Award, Check, Clock } from 'lucide-react';
+import { Settings, Save, TrendingUp, Check, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../api/client';
+
+const MONTHS_RU = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 interface SalarySummaryProps {
   leads: LeadReport[];
@@ -19,46 +21,50 @@ function fmtHours(secs: number): string {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
 }
 
-// ПО = предоплаты (depositPaid === true)
-function calcSalary(
-  showUps: number,
-  deposits: number,
-  workedSecs: number,
-  rules: CommissionRules
-): number {
+function calcSalary(showUps: number, deposits: number, workedSecs: number, rules: CommissionRules): number {
   const over      = deposits > rules.poThreshold;
   const visitRate = over ? rules.perShowUpHigh : rules.perShowUpLow;
   const poRate    = over ? rules.perPoHigh     : rules.perPoLow;
   return showUps * visitRate + (workedSecs / 3600) * rules.hourlyRate + deposits * poRate;
 }
 
+function prevMonth(year: number, month: number): [number, number] {
+  return month === 1 ? [year - 1, 12] : [year, month - 1];
+}
+function nextMonth(year: number, month: number): [number, number] {
+  return month === 12 ? [year + 1, 1] : [year, month + 1];
+}
+
 export default function SalarySummary({
   leads, rules, onSaveRules, currentUserRole, currentManagerName
 }: SalarySummaryProps) {
-  const [isEditingRules, setIsEditingRules] = useState(false);
-  const [editedRules, setEditedRules] = useState<CommissionRules>({ ...rules });
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const now = new Date();
+  const [prevY, prevM] = prevMonth(now.getFullYear(), now.getMonth() + 1);
 
-  // Monthly hours per manager
-  const [monthlyHours, setMonthlyHours] = useState<Record<string, number>>({});
+  const [selectedYear, setSelectedYear]   = useState(prevY);
+  const [selectedMonth, setSelectedMonth] = useState(prevM);
+
+  const [isEditingRules, setIsEditingRules] = useState(false);
+  const [editedRules, setEditedRules]       = useState<CommissionRules>({ ...rules });
+  const [saveLoading, setSaveLoading]       = useState(false);
+  const [saveSuccess, setSaveSuccess]       = useState(false);
+  const [monthlyHours, setMonthlyHours]     = useState<Record<string, number>>({});
 
   useEffect(() => {
     setEditedRules({ ...rules });
   }, [rules]);
 
   useEffect(() => {
-    const now = new Date();
     if (currentUserRole === 'admin') {
-      api.shifts.monthlyAll(now.getFullYear(), now.getMonth() + 1)
+      api.shifts.monthlyAll(selectedYear, selectedMonth)
         .then(data => setMonthlyHours(data))
         .catch(() => {});
     } else {
-      api.shifts.monthly(currentManagerName, now.getFullYear(), now.getMonth() + 1)
+      api.shifts.monthly(currentManagerName, selectedYear, selectedMonth)
         .then(({ totalSeconds }) => setMonthlyHours({ [currentManagerName]: totalSeconds }))
         .catch(() => {});
     }
-  }, [currentUserRole, currentManagerName]);
+  }, [currentUserRole, currentManagerName, selectedYear, selectedMonth]);
 
   const handleRuleChange = (field: keyof CommissionRules, val: number) => {
     setEditedRules(prev => ({ ...prev, [field]: isNaN(val) ? 0 : val }));
@@ -75,14 +81,31 @@ export default function SalarySummary({
     }
   };
 
+  const goToPrev = () => { const [y, m] = prevMonth(selectedYear, selectedMonth); setSelectedYear(y); setSelectedMonth(m); };
+  const goToNext = () => {
+    const [y, m] = nextMonth(selectedYear, selectedMonth);
+    if (y > now.getFullYear() || (y === now.getFullYear() && m > now.getMonth() + 1)) return;
+    setSelectedYear(y); setSelectedMonth(m);
+  };
+
+  const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1;
+  const isPrevMonthSelected = selectedYear === prevY && selectedMonth === prevM;
+
+  // Filter leads by selected period
+  const periodLeads = leads.filter(l => {
+    if (!l.bookingDate) return false;
+    const d = new Date(l.bookingDate);
+    return d.getFullYear() === selectedYear && d.getMonth() + 1 === selectedMonth;
+  });
+
   const managers = currentUserRole === 'admin'
     ? Array.from(new Set(leads.map(l => l.managerName).filter(Boolean)))
     : [currentManagerName];
 
   const performances: ManagerPerformance[] = managers.map(managerName => {
-    const ml            = leads.filter(l => l.managerName === managerName);
+    const ml            = periodLeads.filter(l => l.managerName === managerName);
     const totalBookings = ml.length;
-    const totalDeposits = ml.filter(l => l.depositPaid).length;   // ПО
+    const totalDeposits = ml.filter(l => l.depositPaid).length;
     const totalShowUps  = ml.filter(l => l.status === 'showed_up').length;
     const totalNoShows  = ml.filter(l => l.status === 'no_show').length;
     const workedSeconds = monthlyHours[managerName] ?? 0;
@@ -92,11 +115,48 @@ export default function SalarySummary({
 
   const inputCls = "w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs";
   const labelCls = "block text-[8.5px] uppercase font-bold tracking-wider text-neutral-450 leading-none mb-1";
-  // ПО = предоплаты; threshold check against deposits count
   const overThreshold = (deposits: number) => deposits > (rules.poThreshold ?? 140);
 
   return (
     <div className="space-y-6">
+
+      {/* Period selector */}
+      <div className="spatial-glass rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <button onClick={goToPrev}
+            className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-200 cursor-pointer shadow-sm">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="min-w-[160px] text-center">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-950">
+              {MONTHS_RU[selectedMonth - 1]} {selectedYear}
+            </p>
+          </div>
+          <button onClick={goToNext} disabled={isCurrentMonth}
+            className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-200 cursor-pointer shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setSelectedYear(prevY); setSelectedMonth(prevM); }}
+            className={`px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wider rounded-xl border cursor-pointer transition duration-200 ${isPrevMonthSelected ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 text-neutral-500 border-neutral-200/60 hover:border-neutral-950 hover:text-neutral-950'}`}
+          >
+            Прошлый месяц
+          </button>
+          <button
+            onClick={() => { setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth() + 1); }}
+            className={`px-3.5 py-2 text-[9.5px] font-bold uppercase tracking-wider rounded-xl border cursor-pointer transition duration-200 ${isCurrentMonth ? 'bg-neutral-950 text-white border-neutral-950' : 'bg-white/60 text-neutral-500 border-neutral-200/60 hover:border-neutral-950 hover:text-neutral-950'}`}
+          >
+            Текущий месяц
+          </button>
+        </div>
+
+        <div className="sm:ml-auto text-[9px] font-bold uppercase tracking-widest text-neutral-400">
+          {periodLeads.length} {periodLeads.length === 1 ? 'запись' : periodLeads.length >= 2 && periodLeads.length <= 4 ? 'записи' : 'записей'} за период
+        </div>
+      </div>
 
       {/* Commission rules (admin only) */}
       {currentUserRole === 'admin' && (
@@ -112,7 +172,7 @@ export default function SalarySummary({
               onClick={() => setIsEditingRules(!isEditingRules)}
               className="px-4 py-2 text-[10.5px] font-bold uppercase tracking-wider text-neutral-600 hover:text-neutral-950 bg-white/40 border border-neutral-200/60 rounded-xl transition-all duration-300 cursor-pointer shadow-3xs active:scale-95 hover:bg-white/80"
             >
-              {isEditingRules ? 'Свернуть' : '⚙️ Редактировать'}
+              {isEditingRules ? 'Свернуть' : 'Редактировать'}
             </button>
           </div>
 
@@ -126,15 +186,15 @@ export default function SalarySummary({
                 className="p-6 border-t border-neutral-150/40 space-y-6 relative z-10"
               >
                 {saveSuccess && (
-                  <div className="p-3 bg-neutral-950 text-white text-[11px] font-bold rounded-xl text-center uppercase tracking-wider">
-                    ✓ Параметры расчёта обновлены!
+                  <div className="p-3 bg-neutral-950 text-white text-[11px] font-bold rounded-xl text-center uppercase tracking-wider flex items-center justify-center gap-2">
+                    <Check className="w-4 h-4" /> Параметры обновлены
                   </div>
                 )}
 
-                <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-[10.5px] text-indigo-700 font-semibold leading-relaxed">
+                <div className="p-4 bg-neutral-50 border border-neutral-150 rounded-2xl text-[10.5px] text-neutral-600 font-semibold leading-relaxed">
                   Формула: Визиты × ставка + Часы × {editedRules.hourlyRate}₽ + Предоплаты × ставка
                   <br />
-                  <span className="text-indigo-500 font-bold">ПО = предоплаты. Ставки растут если ПО &gt; {editedRules.poThreshold ?? 140}</span>
+                  <span className="text-neutral-400">Ставки повышаются если ПО &gt; {editedRules.poThreshold ?? 140}</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-xs text-neutral-700">
@@ -226,7 +286,7 @@ export default function SalarySummary({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
         {performances.length === 0 ? (
           <div className="lg:col-span-2 spatial-glass rounded-3xl p-16 text-center text-xs text-neutral-450 font-medium tracking-wide">
-            Нет данных
+            Нет данных за выбранный период
           </div>
         ) : performances.map((perf) => {
           const over      = overThreshold(perf.totalDeposits);
@@ -243,7 +303,6 @@ export default function SalarySummary({
               className="spatial-glass rounded-3xl p-6 shadow-3xs flex flex-col justify-between"
             >
               <div className="space-y-5">
-                {/* Header */}
                 <div className="flex items-center justify-between pb-4 border-b border-neutral-150/40">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-neutral-950 text-white flex items-center justify-center font-display font-semibold text-sm shrink-0">
@@ -252,7 +311,7 @@ export default function SalarySummary({
                     <div>
                       <h4 className="font-display font-semibold text-neutral-950 text-sm leading-none">{perf.managerName}</h4>
                       <span className="text-[8.5px] text-neutral-400 font-extrabold uppercase tracking-widest block mt-1.5">
-                        Расчёт зарплаты
+                        {MONTHS_RU[selectedMonth - 1]} {selectedYear}
                       </span>
                     </div>
                   </div>
@@ -261,13 +320,12 @@ export default function SalarySummary({
                   </div>
                 </div>
 
-                {/* Counters */}
                 <div className="grid grid-cols-4 gap-2 text-center">
                   {[
-                    { label: 'Записи', count: perf.totalBookings },
-                    { label: 'Визиты', count: perf.totalShowUps },
+                    { label: 'Записи',     count: perf.totalBookings },
+                    { label: 'Визиты',     count: perf.totalShowUps },
                     { label: 'Предоплаты', count: perf.totalDeposits },
-                    { label: 'Пропуски', count: perf.totalNoShows },
+                    { label: 'Пропуски',   count: perf.totalNoShows },
                   ].map((s, i) => (
                     <div key={i} className="p-2.5 bg-neutral-50 rounded-xl border border-white/50 shadow-4xs">
                       <span className="text-[8px] text-neutral-400 block font-bold uppercase tracking-wider leading-none">{s.label}</span>
@@ -276,16 +334,14 @@ export default function SalarySummary({
                   ))}
                 </div>
 
-                {/* Worked hours */}
                 <div className="flex items-center gap-2 px-3.5 py-2.5 bg-neutral-50 rounded-xl border border-neutral-100">
                   <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                  <span className="text-[10.5px] text-neutral-600 font-medium">Отработано в этом месяце:</span>
+                  <span className="text-[10.5px] text-neutral-600 font-medium">Отработано за период:</span>
                   <span className="ml-auto font-bold text-neutral-900 text-[10.5px]">
                     {perf.workedSeconds > 0 ? fmtHours(perf.workedSeconds) : '—'}
                   </span>
                 </div>
 
-                {/* Breakdown */}
                 <div className="space-y-2 pt-3 border-t border-neutral-150/40 text-[11px] text-neutral-500 font-semibold">
                   <div className="flex justify-between">
                     <span>Визиты ({perf.totalShowUps} × {visitRate} ₽):</span>
@@ -302,7 +358,6 @@ export default function SalarySummary({
                 </div>
               </div>
 
-              {/* Total */}
               <div className="mt-5 border-t border-neutral-150/40 pt-4 flex items-center justify-between">
                 <div>
                   <span className="text-[8.5px] text-neutral-400 font-bold uppercase tracking-widest block">Итоговое начисление</span>

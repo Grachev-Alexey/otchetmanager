@@ -212,7 +212,7 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
               return (
                 <div key={manager.name} className="p-4 bg-white/40 border border-white/60 hover:bg-white/60 rounded-xl hover:shadow-sm transition-colors duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${manager.avatarColor || 'from-indigo-500 to-indigo-700'} flex items-center justify-center font-display font-medium text-sm text-white shadow-sm shrink-0`}>
+                    <div className="w-10 h-10 rounded-xl bg-neutral-950 flex items-center justify-center font-display font-medium text-sm text-white shadow-sm shrink-0">
                       {manager.name.charAt(0)}
                     </div>
                     <div className="min-w-0">

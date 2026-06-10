@@ -65,7 +65,7 @@ router.post('/start', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required' });
 
   if (!db.pool || !db.isConnected)
-    return res.json({ success: true, session: null, fallback: true });
+    return res.json({ success: true, session: null, todayPriorSeconds: 0, fallback: true });
 
   try {
     // Close any stale open sessions (safety guard)
@@ -74,12 +74,29 @@ router.post('/start', async (req, res) => {
        WHERE manager_name = $1 AND ended_at IS NULL`,
       [name]
     );
+
+    // Read today's already-completed seconds AFTER closing stale sessions
+    const priorR = await db.pool.query(
+      `SELECT COALESCE(SUM(
+         LEAST(GREATEST(0,
+           EXTRACT(EPOCH FROM (ended_at - started_at))::INT - total_break_secs
+         ), $2)
+       ), 0) AS prior_secs
+       FROM work_sessions
+       WHERE manager_name = $1
+         AND ended_at IS NOT NULL
+         AND (started_at AT TIME ZONE 'Europe/Moscow')::DATE
+             = (NOW() AT TIME ZONE 'Europe/Moscow')::DATE`,
+      [name, MAX_SESSION_SECS]
+    );
+    const todayPriorSeconds = parseInt(priorR.rows[0].prior_secs);
+
     const r = await db.pool.query(
       `INSERT INTO work_sessions (manager_name, started_at)
        VALUES ($1, NOW()) RETURNING *`,
       [name]
     );
-    return res.json({ success: true, session: sessionView(r.rows[0]) });
+    return res.json({ success: true, session: sessionView(r.rows[0]), todayPriorSeconds });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

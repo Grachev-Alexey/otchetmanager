@@ -4,19 +4,11 @@ import { Plus, X, Edit, Trash2, Check } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import type { StaffMember } from '../types';
 
-const AVATAR_COLORS = [
-  { class: 'from-blue-500 to-indigo-500',   label: 'Океан' },
-  { class: 'from-purple-500 to-pink-500',    label: 'Закат' },
-  { class: 'from-emerald-400 to-teal-500',   label: 'Изумруд' },
-  { class: 'from-indigo-600 to-indigo-800',  label: 'Космос' },
-  { class: 'from-amber-400 to-orange-500',   label: 'Медный' },
-  { class: 'from-cyan-400 to-blue-500',      label: 'Бирюза' },
-];
-
 const EMPTY_FORM = {
+  id: undefined as number | undefined,
+  originalName: '',
   name: '', role: 'manager' as 'admin' | 'manager',
-  pin: '', department: 'Отдел продаж', bio: '',
-  avatarColor: 'from-blue-500 to-indigo-500',
+  pin: '', department: 'Отдел продаж',
 };
 
 interface Props {
@@ -42,7 +34,7 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
 
   const openEdit = (user: StaffMember) => {
     setEditingUser(user);
-    setForm({ name: user.name, role: user.role, pin: user.pin, department: user.department, bio: user.bio || '', avatarColor: user.avatarColor || EMPTY_FORM.avatarColor });
+    setForm({ id: user.id, originalName: user.name, name: user.name, role: user.role, pin: user.pin, department: user.department });
     setError(''); setSuccess('');
     setFormOpen(true);
   };
@@ -54,7 +46,16 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
     if (!form.name || !form.pin) { setError('ФИО и ПИН-код обязательны'); return; }
     setError(''); setSaving(true);
     try {
-      await api.users.save({ ...form, status: editingUser?.status || 'offline', lastActive: editingUser?.lastActive || 'Не в сети' });
+      await api.users.save({
+        id: editingUser ? form.id : undefined,
+        name: form.name,
+        originalName: editingUser ? form.originalName : undefined,
+        role: form.role,
+        pin: form.pin,
+        department: form.department,
+        status: editingUser?.status || 'offline',
+        lastActive: editingUser?.lastActive || 'Не в сети',
+      });
       setSuccess(editingUser ? 'Сотрудник обновлён' : 'Сотрудник зарегистрирован');
       await onRefresh();
       setTimeout(() => { setSuccess(''); closeForm(); }, 1200);
@@ -106,12 +107,12 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
                   <label className="block text-[8.5px] font-bold text-neutral-400 uppercase tracking-widest">ФИО Сотрудника *</label>
-                  <input type="text" disabled={!!editingUser} placeholder="Иван Иванов" value={form.name}
+                  <input type="text" placeholder="Иван Иванов" value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-white/70 border border-neutral-200/60 focus:border-neutral-950 rounded-xl text-neutral-950 font-bold focus:outline-hidden disabled:bg-neutral-100/30 transition duration-300 shadow-sm text-[11.5px]" />
+                    className="w-full px-4 py-2.5 bg-white/70 border border-neutral-200/60 focus:border-neutral-950 rounded-xl text-neutral-950 font-bold focus:outline-hidden transition duration-300 shadow-sm text-[11.5px]" />
                 </div>
 
                 <div className="space-y-1.5">
@@ -136,27 +137,6 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
                     onChange={e => setForm(p => ({ ...p, department: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-white/70 border border-neutral-200/60 focus:border-neutral-950 rounded-xl text-neutral-950 font-bold focus:outline-hidden transition duration-300 shadow-sm text-[11.5px]" />
                 </div>
-
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="block text-[8.5px] font-bold text-neutral-400 uppercase tracking-widest">Краткое описание (Должность)</label>
-                  <input type="text" placeholder="Лид-менеджер по сложным предоплатам" value={form.bio}
-                    onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-white/70 border border-neutral-200/60 focus:border-neutral-950 rounded-xl text-neutral-950 font-bold focus:outline-hidden transition duration-300 shadow-sm text-[11.5px]" />
-                </div>
-
-                <div className="space-y-2 md:col-span-3">
-                  <label className="block text-[8.5px] font-bold text-neutral-400 uppercase tracking-widest">Цветовой градиент карточки</label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {AVATAR_COLORS.map(color => (
-                      <button type="button" key={color.class}
-                        onClick={() => setForm(p => ({ ...p, avatarColor: color.class }))}
-                        className={`px-3.5 py-2 rounded-xl text-[10px] font-bold text-white bg-gradient-to-r ${color.class} cursor-pointer hover:opacity-90 active:scale-95 transition-all shadow-sm ${form.avatarColor === color.class ? 'ring-2 ring-neutral-950 scale-105' : ''}`}
-                      >
-                        {color.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <div className="pt-4 border-t border-neutral-100/40 flex items-center justify-end gap-2.5">
@@ -176,14 +156,9 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
 
       <div className="spatial-glass rounded-2xl p-6 space-y-6 shadow-sm">
         <div className="pb-4 border-b border-neutral-100/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h3 className="font-display font-semibold text-neutral-950 text-xs uppercase tracking-widest leading-none">
-              Администрирование доступов
-            </h3>
-            <p className="text-[10.5px] text-neutral-400 mt-2 font-bold uppercase tracking-wider leading-none">
-              Управляйте учётными карточками отдела и задавайте уникальные ПИН-коды.
-            </p>
-          </div>
+          <h3 className="font-display font-semibold text-neutral-950 text-xs uppercase tracking-widest leading-none">
+            Администрирование доступов
+          </h3>
           {!formOpen && (
             <button onClick={openCreate}
               className="px-4.5 py-2.5 bg-neutral-950 hover:bg-neutral-800 text-white font-extrabold rounded-xl text-[10.5px] uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-sm transition duration-300">
@@ -209,7 +184,7 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
                 <tr key={u.name} className="hover:bg-white/45 transition duration-300">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${u.avatarColor || 'from-indigo-500 to-indigo-700'} flex items-center justify-center font-display font-semibold text-white text-[10px] shadow-sm`}>
+                      <div className="w-8 h-8 rounded-full bg-neutral-950 flex items-center justify-center font-display font-semibold text-white text-[10px] shadow-sm">
                         {u.name.charAt(0)}
                       </div>
                       <span className="font-bold text-neutral-950 text-xs">{u.name}</span>

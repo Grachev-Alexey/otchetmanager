@@ -46,8 +46,9 @@ router.get('/lookup', async (req, res) => {
   if (db.pool && db.isConnected) {
     try {
       // 1. Try the main AmoCRM leads table first (richest source)
+      // Explicit ::BIGINT cast: deal_id is BIGINT, pg sends strings as text — avoid implicit cast failure
       const amoResult = await db.pool.query(
-        `SELECT name, phone FROM leads WHERE deal_id = $1 LIMIT 1`,
+        `SELECT name, phone FROM leads WHERE deal_id = $1::BIGINT LIMIT 1`,
         [amocrmId]
       );
       if (amoResult.rows.length > 0) {
@@ -73,6 +74,89 @@ router.get('/lookup', async (req, res) => {
   const found = leads.find((l: any) => l.amocrmLeadId === amocrmId);
   if (found) return res.json({ found: true, clientName: found.clientName, clientPhone: found.clientPhone, source: 'history' });
   return res.json({ found: false });
+});
+
+// GET /api/leads/checkin — past bookings not yet resolved, enriched with Yclients + Yookassa data
+router.get('/checkin', async (req, res) => {
+  const { managerName, role } = req.query as { managerName: string; role: string };
+  if (!db.pool || !db.isConnected) return res.json([]);
+  try {
+    const isAdmin = role === 'admin';
+    const params: any[] = isAdmin ? [] : [managerName];
+    const managerFilter = isAdmin ? '' : `AND lr.manager_name = $1`;
+
+    const result = await db.pool.query(`
+      SELECT
+        lr.id, lr.manager_name, lr.client_name, lr.client_phone,
+        lr.amocrm_lead_id, lr.booking_date, lr.status, lr.city,
+        lr.deposit_required, lr.deposit_amount, lr.deposit_paid,
+        lr.visit_cost, lr.comments, lr.created_at,
+        yr.attendance        AS yclients_attendance,
+        yr.staff_name        AS yclients_staff,
+        (SELECT y.status FROM yookassa y
+           WHERE y.deal_id::text = lr.amocrm_lead_id
+             AND y.status = 'succeeded'
+           LIMIT 1)          AS yookassa_status,
+        (SELECT y.summa FROM yookassa y
+           WHERE y.deal_id::text = lr.amocrm_lead_id
+             AND y.status = 'succeeded'
+           LIMIT 1)          AS yookassa_amount
+      FROM leads_reporting lr
+      LEFT JOIN yclients_record yr ON (
+        LENGTH(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g')) >= 10
+        AND RIGHT(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g'), 10)
+            = RIGHT(yr.client_phone, 10)
+        AND yr.date_visit::date = lr.booking_date
+      )
+      WHERE lr.booking_date < (NOW() AT TIME ZONE 'Europe/Moscow')::date
+        AND lr.status IN ('booked','rescheduled')
+        ${managerFilter}
+      ORDER BY lr.booking_date DESC
+    `, params);
+
+    return res.json(result.rows.map(r => ({
+      id: r.id,
+      managerName: r.manager_name,
+      clientName: r.client_name,
+      clientPhone: r.client_phone,
+      amocrmLeadId: r.amocrm_lead_id,
+      bookingDate: r.booking_date,
+      status: r.status,
+      city: r.city || '',
+      depositRequired: r.deposit_required,
+      depositAmount: parseFloat(r.deposit_amount || 0),
+      depositPaid: r.deposit_paid,
+      visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
+      comments: r.comments,
+      yclientsAttendance: r.yclients_attendance ?? null,
+      yclientsStaff: r.yclients_staff ?? null,
+      yookassaPaid: r.yookassa_status === 'succeeded',
+      yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
+    })));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/leads/:id/quick — quick status / deposit_paid update
+router.patch('/:id/quick', async (req, res) => {
+  const { id } = req.params;
+  const { status, depositPaid } = req.body;
+  if (!db.pool || !db.isConnected) return res.status(503).json({ error: 'DB not connected' });
+  try {
+    const sets: string[] = ['updated_at = NOW()'];
+    const vals: any[] = [];
+    if (status !== undefined) { vals.push(status); sets.push(`status = $${vals.length}`); }
+    if (depositPaid !== undefined) { vals.push(depositPaid); sets.push(`deposit_paid = $${vals.length}`); }
+    vals.push(id);
+    await db.pool.query(
+      `UPDATE leads_reporting SET ${sets.join(', ')} WHERE id = $${vals.length}`,
+      vals
+    );
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/leads  (create or upsert)

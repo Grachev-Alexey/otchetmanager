@@ -37,14 +37,13 @@ export interface DbStatus {
 }
 
 export interface StaffMember {
+  id?: number;
   name: string;
   role: 'admin' | 'manager';
   pin: string;
   department: string;
-  avatarColor: string;
   status: 'online' | 'offline';
   lastActive: string;
-  bio: string;
 }
 
 export interface ShiftSession {
@@ -54,6 +53,13 @@ export interface ShiftSession {
   endedAt: string | null;
   breakStartedAt: string | null;
   totalBreakSecs: number;
+}
+
+export interface CheckinLead extends LeadReport {
+  yclientsAttendance: number | null; // 1=пришёл, -1=не пришёл, 0=ожидание, 2=отменено
+  yclientsStaff: string | null;
+  yookassaPaid: boolean;
+  yookassaAmount: number | null;
 }
 
 export interface ManagerPerformance {

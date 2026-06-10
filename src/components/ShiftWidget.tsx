@@ -68,13 +68,18 @@ export default function ShiftWidget({ managerName }: Props) {
   const startShift = async () => {
     setBusy(true);
     try {
-      const { session: s } = await api.shifts.start(managerName);
+      const { session: s, todayPriorSeconds } = await api.shifts.start(managerName);
+      // Always trust the server's todayPriorSeconds — it's the source of truth for the day total
+      if (todayPriorSeconds !== undefined) {
+        priorSecsRef.current = todayPriorSeconds;
+        setElapsed(todayPriorSeconds);
+      }
       const pseudo = s ?? {
         id: 0, managerName, startedAt: new Date().toISOString(),
         endedAt: null, breakStartedAt: null, totalBreakSecs: 0,
       };
       setSession(pseudo);
-      startTick(pseudo);  // priorSecsRef.current is always up-to-date
+      startTick(pseudo);
       setState('active');
     } catch { /* ignore */ } finally { setBusy(false); }
   };

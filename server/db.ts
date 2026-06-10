@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import { DEFAULT_RULES, DEFAULT_USERS } from './localFallback';
@@ -121,6 +122,23 @@ export async function bootstrapDb(): Promise<void> {
     await client.query(`
       ALTER TABLE marketing_users
         ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
+    `);
+
+    // Migrate PK from name → id (run once: only if id column absent)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'marketing_users' AND column_name = 'id'
+        ) THEN
+          ALTER TABLE marketing_users ADD COLUMN id BIGSERIAL;
+          ALTER TABLE marketing_users DROP CONSTRAINT IF EXISTS marketing_users_pkey;
+          ALTER TABLE marketing_users ADD PRIMARY KEY (id);
+          ALTER TABLE marketing_users
+            ADD CONSTRAINT marketing_users_name_unique UNIQUE (name);
+        END IF;
+      END $$;
     `);
 
     await client.query(`

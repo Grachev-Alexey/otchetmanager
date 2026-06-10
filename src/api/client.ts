@@ -1,4 +1,4 @@
-import type { LeadReport, CommissionRules, StaffMember, ShiftSession } from '../types';
+import type { LeadReport, CommissionRules, StaffMember, ShiftSession, CheckinLead } from '../types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -40,7 +40,7 @@ export const api = {
   users: {
     list: () =>
       request<StaffMember[]>('/api/users'),
-    save: (user: Partial<StaffMember> & { name: string }) =>
+    save: (user: Partial<StaffMember> & { name: string; originalName?: string }) =>
       request<{ success: boolean }>('/api/users', { method: 'POST', body: JSON.stringify(user) }),
     delete: (name: string) =>
       request<{ success: boolean }>(`/api/users/${encodeURIComponent(name)}`, { method: 'DELETE' }),
@@ -57,11 +57,21 @@ export const api = {
       request<{ success: boolean }>('/api/auth/heartbeat', { method: 'POST', body: JSON.stringify({ name }) }),
   },
 
+  checkin: {
+    list: (managerName: string, role: string) =>
+      request<CheckinLead[]>(`/api/leads/checkin?managerName=${encodeURIComponent(managerName)}&role=${role}`),
+    quickUpdate: (id: string, update: { status?: string; depositPaid?: boolean }) =>
+      request<{ success: boolean }>(`/api/leads/${encodeURIComponent(id)}/quick`, {
+        method: 'PATCH',
+        body: JSON.stringify(update),
+      }),
+  },
+
   shifts: {
     active: (name: string) =>
       request<{ active: boolean; session: ShiftSession | null; todayPriorSeconds: number }>(`/api/shifts/active?name=${encodeURIComponent(name)}`),
     start: (name: string) =>
-      request<{ success: boolean; session: ShiftSession | null }>('/api/shifts/start', { method: 'POST', body: JSON.stringify({ name }) }),
+      request<{ success: boolean; session: ShiftSession | null; todayPriorSeconds?: number }>('/api/shifts/start', { method: 'POST', body: JSON.stringify({ name }) }),
     end: (name: string) =>
       request<{ success: boolean; workedSeconds: number }>('/api/shifts/end', { method: 'POST', body: JSON.stringify({ name }) }),
     breakStart: (name: string) =>

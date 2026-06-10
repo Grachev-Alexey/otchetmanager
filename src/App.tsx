@@ -11,12 +11,13 @@ import DashboardPage         from './pages/DashboardPage';
 import LeadsPage             from './pages/LeadsPage';
 import StaffDirectoryPage    from './pages/StaffDirectoryPage';
 import UserManagementPage    from './pages/UserManagementPage';
+import CheckinPage           from './pages/CheckinPage';
 import Sidebar               from './components/Sidebar';
 import Header                from './components/Header';
 import SalarySummary         from './components/SalarySummary';
 import LeadForm              from './components/LeadForm';
 
-type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management';
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin';
 
 const SESSION_KEY = 'vivi_marketing_session';
 
@@ -55,10 +56,13 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') refreshLeads();
+      if (document.visibilityState === 'visible') {
+        refreshLeads();
+        refreshUsers();
+      }
     }, 30_000);
     return () => clearInterval(id);
-  }, [isAuthenticated, refreshLeads]);
+  }, [isAuthenticated, refreshLeads, refreshUsers]);
 
   // Heartbeat: update last_seen_at every 60s while tab is active
   useEffect(() => {
@@ -106,7 +110,7 @@ export default function App() {
 
   const handleLogout = useCallback(async () => {
     if (currentUser) {
-      api.auth.logout(currentUser.name).catch(() => {});
+      await api.auth.logout(currentUser.name).catch(() => {});
     }
     setAuth(false);
     setCurrentUser(null);
@@ -187,6 +191,14 @@ export default function App() {
     ? leads.length
     : leads.filter(l => l.managerName === currentUser.name).length;
 
+  const todayMsk = new Date().toLocaleDateString('sv', { timeZone: 'Europe/Moscow' });
+  const checkinCount = leads.filter(l => {
+    const d = l.bookingDate ? String(l.bookingDate).slice(0, 10) : '';
+    return d < todayMsk
+      && (l.status === 'booked' || l.status === 'rescheduled')
+      && (currentUser.role === 'admin' || l.managerName === currentUser.name);
+  }).length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50/80 via-indigo-50/20 to-slate-100/60 text-slate-800 flex flex-col lg:flex-row antialiased font-sans">
       <Sidebar
@@ -195,6 +207,7 @@ export default function App() {
         onNavigate={navigate}
         totalLeadsCount={myLeadsCount}
         totalUsersCount={allUsers.length}
+        checkinCount={checkinCount}
         onLogout={handleLogout}
       />
 
@@ -250,6 +263,15 @@ export default function App() {
                   allUsers={allUsers}
                   currentUserName={currentUser.name}
                   onRefresh={refreshUsers}
+                />
+              </motion.div>
+            )}
+
+            {activeMenu === 'checkin' && (
+              <motion.div key="checkin" {...PAGE_TRANSITION}>
+                <CheckinPage
+                  currentUser={currentUser}
+                  onRefreshLeads={refreshLeads}
                 />
               </motion.div>
             )}

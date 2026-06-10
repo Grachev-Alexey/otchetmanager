@@ -44,9 +44,9 @@ router.post('/login', async (req, res) => {
       if (result.rows.length > 0) {
         const row = result.rows[0];
         matchedUser = {
+          id: row.id ? Number(row.id) : undefined,
           name: row.name, role: row.role, pin: row.pin,
-          department: row.department, bio: row.bio,
-          avatarColor: row.avatar_color, status: 'online', lastActive: 'В сети',
+          department: row.department, status: 'online', lastActive: 'В сети',
         };
         await db.pool.query(
           'UPDATE marketing_users SET status = $1, last_active = $2, last_seen_at = NOW() WHERE name = $3',
@@ -88,10 +88,10 @@ router.post('/logout', async (req, res) => {
 
   if (db.pool && db.isConnected) {
     try {
-      // Set last_seen_at far in the past so status immediately reads as offline
+      // NULL last_seen_at → deriveStatus returns 'offline' immediately
       await db.pool.query(
         `UPDATE marketing_users
-         SET status = 'offline', last_active = $1, last_seen_at = NOW() - interval '1 year'
+         SET status = 'offline', last_active = $1, last_seen_at = NULL
          WHERE name = $2`,
         [new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ' назад', name]
       );

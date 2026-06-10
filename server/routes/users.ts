@@ -4,7 +4,6 @@ import { readLocalUsers, writeLocalUsers } from '../localFallback';
 
 const router = Router();
 
-// Online threshold: 3 minutes (heartbeat every 60s, so 3 missed beats = offline)
 const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
 
 function deriveStatus(lastSeenAt: Date | null): 'online' | 'offline' {
@@ -41,12 +40,11 @@ function mapRow(row: any) {
   const lastSeenAt: Date | null = row.last_seen_at ? new Date(row.last_seen_at) : null;
   const status = deriveStatus(lastSeenAt);
   return {
+    id: row.id ? Number(row.id) : undefined,
     name: row.name,
     role: row.role,
     pin: row.pin,
     department: row.department,
-    bio: row.bio,
-    avatarColor: row.avatar_color,
     status,
     lastActive: formatLastSeen(lastSeenAt),
   };
@@ -65,33 +63,54 @@ router.get('/', async (_req, res) => {
   res.json(readLocalUsers());
 });
 
-// POST /api/users  (create or upsert)
+// POST /api/users  (create or update by id)
 router.post('/', async (req, res) => {
-  const { name, role, pin, department, bio, avatarColor } = req.body;
+  const { id, name, role, pin, department, originalName } = req.body;
   if (!name || !role || !pin) {
     return res.status(400).json({ error: 'ФИО, роль и ПИН-код обязательны' });
   }
   const dept = department || (role === 'admin' ? 'Администрация' : 'Отдел продаж');
-  const color = avatarColor || 'from-indigo-500 to-purple-600';
 
   if (db.pool && db.isConnected) {
     try {
-      await db.pool.query(`
-        INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color, status, last_active)
-        VALUES ($1, $2, $3, $4, $5, $6, 'offline', 'Не в сети')
-        ON CONFLICT (name) DO UPDATE SET
-          role = EXCLUDED.role, pin = EXCLUDED.pin, department = EXCLUDED.department,
-          bio = EXCLUDED.bio, avatar_color = EXCLUDED.avatar_color
-      `, [name, role, pin, dept, bio || '', color]);
+      if (id) {
+        // Update existing user by numeric id — no delete+insert needed
+        await db.pool.query(
+          `UPDATE marketing_users SET name = $1, role = $2, pin = $3, department = $4 WHERE id = $5`,
+          [name, role, pin, dept, id]
+        );
+        // If name changed, keep denormalized references in sync
+        if (originalName && originalName !== name) {
+          await Promise.all([
+            db.pool.query(
+              `UPDATE leads_reporting SET manager_name = $1 WHERE manager_name = $2`,
+              [name, originalName]
+            ),
+            db.pool.query(
+              `UPDATE work_sessions SET manager_name = $1 WHERE manager_name = $2`,
+              [name, originalName]
+            ),
+          ]);
+        }
+      } else {
+        // New user — INSERT (id assigned by BIGSERIAL)
+        await db.pool.query(
+          `INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color, status, last_active)
+           VALUES ($1, $2, $3, $4, '', 'from-indigo-500 to-purple-600', 'offline', 'Не в сети')`,
+          [name, role, pin, dept]
+        );
+      }
       return res.json({ success: true, name });
     } catch (err: any) {
       return res.status(500).json({ error: 'Database write error: ' + err.message });
     }
   }
 
+  // Local fallback (no id system — update by name)
   const users = readLocalUsers();
-  const idx = users.findIndex((u: any) => u.name === name);
-  const user = { name, role, pin, department: dept, bio: bio || '', avatarColor: color, status: 'offline', lastActive: 'Не в сети' };
+  const key = originalName || name;
+  const idx = users.findIndex((u: any) => u.name === key);
+  const user = { name, role, pin, department: dept, status: 'offline', lastActive: 'Не в сети' };
   if (idx >= 0) users[idx] = { ...users[idx], ...user };
   else users.push(user);
   writeLocalUsers(users);
