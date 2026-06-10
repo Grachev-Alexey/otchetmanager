@@ -105,8 +105,9 @@ export default function SalarySummary({
   const performances: ManagerPerformance[] = managers.map(managerName => {
     const ml              = periodLeads.filter(l => l.managerName === managerName);
     const totalBookings   = ml.length;
-    const regularDeposits = ml.filter(l => l.depositPaid && !l.isReferral).length;
-    const referralDeposits = ml.filter(l => l.depositPaid && l.isReferral).length;
+    // showed_up counts as both a visit AND a deposit (client arrived = deposit credit)
+    const regularDeposits = ml.filter(l => (l.depositPaid || l.status === 'showed_up') && !l.isReferral).length;
+    const referralDeposits = ml.filter(l => (l.depositPaid || l.status === 'showed_up') && l.isReferral).length;
     const totalDeposits   = regularDeposits + referralDeposits;
     const weightedDeposits = regularDeposits + referralDeposits * 2;
     const totalShowUps    = ml.filter(l => l.status === 'showed_up').length;

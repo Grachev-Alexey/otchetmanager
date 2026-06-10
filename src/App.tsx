@@ -9,7 +9,6 @@ import type { LeadReport, CommissionRules, StaffMember } from './types';
 import LoginPage             from './pages/LoginPage';
 import DashboardPage         from './pages/DashboardPage';
 import LeadsPage             from './pages/LeadsPage';
-import StaffDirectoryPage    from './pages/StaffDirectoryPage';
 import UserManagementPage    from './pages/UserManagementPage';
 import CheckinPage           from './pages/CheckinPage';
 import ShiftManagementPage   from './pages/ShiftManagementPage';
@@ -18,7 +17,7 @@ import Header                from './components/Header';
 import SalarySummary         from './components/SalarySummary';
 import LeadForm              from './components/LeadForm';
 
-type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin' | 'shift_management';
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'user_management' | 'checkin' | 'shift_management';
 
 const SESSION_KEY = 'vivi_marketing_session';
 
@@ -37,7 +36,6 @@ export default function App() {
   const [activeMenu, setActiveMenu]     = useState<ActiveMenu>('dashboard');
   const [isFormOpen, setIsFormOpen]     = useState(false);
   const [editingLead, setEditingLead]   = useState<LeadReport | null>(null);
-  // null = shift state not yet known (loading); true/false = known
   const [managerShiftActive, setManagerShiftActive] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -61,48 +59,10 @@ export default function App() {
     const id = setInterval(() => {
       if (document.visibilityState === 'visible') {
         refreshLeads();
-        refreshUsers();
       }
     }, 30_000);
     return () => clearInterval(id);
-  }, [isAuthenticated, refreshLeads, refreshUsers]);
-
-  // Heartbeat: update last_seen_at every 60s while tab is active
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser) return;
-    const name = currentUser.name;
-
-    // Immediate heartbeat on mount
-    api.auth.heartbeat(name).catch(() => {});
-
-    // Heartbeat every 60s regardless of tab visibility — open tab = user is around
-    const id = setInterval(() => {
-      api.auth.heartbeat(name).catch(() => {});
-    }, 60_000);
-
-    // Extra heartbeat when user switches back to this tab after being away
-    const handleVisible = () => {
-      if (document.visibilityState === 'visible') {
-        api.auth.heartbeat(name).catch(() => {});
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisible);
-
-    // Mark offline instantly when tab closes (sendBeacon survives unload)
-    const handleUnload = () => {
-      navigator.sendBeacon(
-        '/api/auth/logout',
-        new Blob([JSON.stringify({ name })], { type: 'application/json' })
-      );
-    };
-    window.addEventListener('beforeunload', handleUnload);
-
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', handleVisible);
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [isAuthenticated, currentUser]);
+  }, [isAuthenticated, refreshLeads]);
 
   const handleLogin = useCallback((user: StaffMember) => {
     setCurrentUser(user);
@@ -111,10 +71,7 @@ export default function App() {
     Promise.all([refreshLeads(), refreshRules(), refreshUsers()]);
   }, [refreshLeads, refreshRules, refreshUsers]);
 
-  const handleLogout = useCallback(async () => {
-    if (currentUser) {
-      await api.auth.logout(currentUser.name).catch(() => {});
-    }
+  const handleLogout = useCallback(() => {
     setAuth(false);
     setCurrentUser(null);
     setActiveMenu('dashboard');
@@ -122,9 +79,8 @@ export default function App() {
     setEditingLead(null);
     setManagerShiftActive(null);
     localStorage.removeItem(SESSION_KEY);
-  }, [currentUser]);
+  }, []);
 
-  // When manager's shift ends while on the Leads page, kick them to dashboard
   const handleShiftChange = useCallback((active: boolean) => {
     setManagerShiftActive(active);
     if (!active && activeMenu === 'leads') {
@@ -218,7 +174,6 @@ export default function App() {
         activeMenu={activeMenu}
         onNavigate={navigate}
         totalLeadsCount={myLeadsCount}
-        totalUsersCount={allUsers.length}
         checkinCount={checkinCount}
         onLogout={handleLogout}
         shiftActive={currentUser.role === 'manager' ? (managerShiftActive ?? undefined) : undefined}
@@ -263,12 +218,6 @@ export default function App() {
                   currentUserRole={currentUser.role}
                   currentManagerName={currentUser.name}
                 />
-              </motion.div>
-            )}
-
-            {activeMenu === 'staff_directory' && (
-              <motion.div key="staff" {...PAGE_TRANSITION}>
-                <StaffDirectoryPage allUsers={allUsers} leads={leads} />
               </motion.div>
             )}
 
@@ -321,13 +270,11 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
-            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/40"
               onClick={closeModal}
             />
 
-            {/* Modal card */}
             <motion.div
               className="relative w-full sm:max-w-2xl max-h-[95dvh] sm:max-h-[88vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-neutral-100"
               initial={{ opacity: 0 }}

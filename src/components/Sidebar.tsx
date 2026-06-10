@@ -1,29 +1,27 @@
 import React from 'react';
-import { LayoutDashboard, Users, Sliders, FileText, Settings, Sparkles, LogOut, ClipboardCheck, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Users, Sliders, Settings, Sparkles, LogOut, ClipboardCheck, CalendarClock } from 'lucide-react';
 import type { StaffMember } from '../types';
 import ShiftWidget from './ShiftWidget';
 
-type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin' | 'shift_management';
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'user_management' | 'checkin' | 'shift_management';
 
 interface SidebarProps {
   currentUser: StaffMember;
   activeMenu: ActiveMenu;
   onNavigate: (menu: ActiveMenu) => void;
   totalLeadsCount: number;
-  totalUsersCount: number;
   checkinCount: number;
   onLogout: () => void;
   shiftActive?: boolean;
   onShiftChange?: (active: boolean) => void;
 }
 
-export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLeadsCount, totalUsersCount, checkinCount, onLogout, shiftActive, onShiftChange }: SidebarProps) {
+export default function Sidebar({ currentUser, activeMenu, onNavigate, totalLeadsCount, checkinCount, onLogout, shiftActive, onShiftChange }: SidebarProps) {
   const navItems = [
     { id: 'dashboard' as const, label: 'Главная', icon: LayoutDashboard },
     { id: 'leads' as const, label: 'Записи', icon: Users, badge: totalLeadsCount },
     ...(currentUser.role === 'admin' ? [{ id: 'checkin' as const, label: 'Визиты', icon: ClipboardCheck, badge: checkinCount > 0 ? checkinCount : undefined }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'salary' as const, label: 'Зарплаты', icon: Sliders }] : []),
-    ...(currentUser.role === 'admin' ? [{ id: 'staff_directory' as const, label: 'Команда', icon: FileText, badge: totalUsersCount }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'shift_management' as const, label: 'Смены', icon: CalendarClock }] : []),
     ...(currentUser.role === 'admin' ? [{ id: 'user_management' as const, label: 'Настройки', icon: Settings }] : []),
   ];

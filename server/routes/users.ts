@@ -3,49 +3,13 @@ import { db } from '../db';
 
 const router = Router();
 
-const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
-
-function deriveStatus(lastSeenAt: Date | null): 'online' | 'offline' {
-  if (!lastSeenAt) return 'offline';
-  return (Date.now() - lastSeenAt.getTime()) < ONLINE_THRESHOLD_MS ? 'online' : 'offline';
-}
-
-const MSK = 'Europe/Moscow';
-
-function toMskTime(date: Date): string {
-  return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: MSK });
-}
-
-function toMskDate(date: Date): string {
-  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: MSK });
-}
-
-function formatLastSeen(lastSeenAt: Date | null): string {
-  if (!lastSeenAt) return 'Не в сети';
-  const diffMs = Date.now() - lastSeenAt.getTime();
-  if (diffMs < 0) return 'Не в сети';
-  if (diffMs < ONLINE_THRESHOLD_MS) return 'В сети';
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 60) return `${diffMin} мин назад`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `был(а) в ${toMskTime(lastSeenAt)} МСК`;
-  const diffD = Math.floor(diffH / 24);
-  if (diffD === 1) return `вчера в ${toMskTime(lastSeenAt)} МСК`;
-  if (diffD < 7) return `${diffD} дня назад в ${toMskTime(lastSeenAt)} МСК`;
-  return `${toMskDate(lastSeenAt)} в ${toMskTime(lastSeenAt)} МСК`;
-}
-
 function mapRow(row: any) {
-  const lastSeenAt: Date | null = row.last_seen_at ? new Date(row.last_seen_at) : null;
-  const status = deriveStatus(lastSeenAt);
   return {
     id: row.id ? Number(row.id) : undefined,
     name: row.name,
     role: row.role,
     pin: row.pin,
     department: row.department,
-    status,
-    lastActive: formatLastSeen(lastSeenAt),
   };
 }
 
@@ -94,8 +58,8 @@ router.post('/', async (req, res) => {
       }
     } else {
       await db.pool.query(
-        `INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color, status, last_active)
-         VALUES ($1, $2, $3, $4, '', 'from-indigo-500 to-purple-600', 'offline', 'Не в сети')`,
+        `INSERT INTO marketing_users (name, role, pin, department, bio, avatar_color)
+         VALUES ($1, $2, $3, $4, '', 'from-indigo-500 to-purple-600')`,
         [name, role, pin, dept]
       );
     }

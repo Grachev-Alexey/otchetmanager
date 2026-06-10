@@ -33,7 +33,7 @@ function fmtDate(str: string): string {
   return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function FilterDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function FilterDatePicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -99,16 +99,18 @@ function FilterDatePicker({ value, onChange }: { value: string; onChange: (v: st
         ref={btnRef}
         type="button"
         onClick={handleOpen}
-        className={`text-xs font-bold pl-3 pr-8 py-2.5 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
+        className={`text-xs pl-3 pr-7 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 flex items-center gap-1.5 whitespace-nowrap ${
           isActive
             ? 'bg-neutral-950 text-white border-neutral-950'
-            : 'bg-white/40 focus:bg-white/85 border-neutral-150/60 text-neutral-800'
+            : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-700'
         }`}
       >
-        <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
-        {value ? fmtDate(value) : 'Все записи'}
+        <CalendarDays className={`w-3 h-3 shrink-0 ${isActive ? 'text-white/70' : 'text-neutral-400'}`} />
+        <span className={`font-medium ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>{label}</span>
+        <span className={isActive ? 'text-white/40' : 'text-neutral-300'}>·</span>
+        <span className="font-bold">{value ? fmtDate(value) : 'Все'}</span>
       </button>
-      <ChevronDown className={`absolute right-2.5 w-3.5 h-3.5 pointer-events-none ${isActive ? 'text-white' : 'text-neutral-400'}`} />
+      <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${isActive ? 'text-white/60' : 'text-neutral-400'}`} />
 
       {open && createPortal(
         <div
@@ -208,10 +210,19 @@ export default function LeadList({
   shiftActive,
 }: LeadListProps) {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [managerFilter, setManagerFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>(() => todayMsk());
-  const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid'>('all');
+  const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
+  const [createdAtFilter, setCreatedAtFilter] = useState<string>(() => todayMsk());
+  const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid' | 'not_required'>('all');
+
+  const toggleStatus = (id: string) => {
+    setStatusFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const authorizedLeads = useMemo(() =>
     currentUserRole === 'admin'
@@ -255,31 +266,40 @@ export default function LeadList({
         (lead.clientPhone && lead.clientPhone.includes(term)) ||
         (lead.amocrmLeadId && lead.amocrmLeadId.toLowerCase().includes(term));
 
-      const statusMatch = statusFilter === 'all' || lead.status === statusFilter;
+      const statusMatch = statusFilters.size === 0 || (() => {
+        if (statusFilters.has('waiting') && (lead.status === 'booked' || lead.status === 'rescheduled')) return true;
+        if (statusFilters.has('showed_up') && lead.status === 'showed_up') return true;
+        if (statusFilters.has('no_show') && lead.status === 'no_show') return true;
+        return false;
+      })();
+
       const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
 
-      let dateMatch = true;
-      if (dateFilter && lead.bookingDate) {
-        dateMatch = String(lead.bookingDate).slice(0, 10) === dateFilter;
-      }
+      const bookingDateMatch = !bookingDateFilter || String(lead.bookingDate).slice(0, 10) === bookingDateFilter;
+
+      const createdAtMatch = !createdAtFilter || (lead.createdAt && lead.createdAt.slice(0, 10) === createdAtFilter);
 
       let depositMatch = true;
       if (depositFilter === 'paid') {
         depositMatch = !!lead.yookassaPaid;
       } else if (depositFilter === 'not_paid') {
-        depositMatch = !!lead.amocrmLeadId && !lead.yookassaPaid;
+        depositMatch = !!lead.depositRequired && !lead.yookassaPaid;
+      } else if (depositFilter === 'not_required') {
+        depositMatch = !lead.depositRequired;
       }
 
-      return searchMatch && statusMatch && managerMatch && dateMatch && depositMatch;
+      return searchMatch && statusMatch && managerMatch && bookingDateMatch && createdAtMatch && depositMatch;
     });
-  }, [authorizedLeads, search, statusFilter, managerFilter, dateFilter, depositFilter, currentUserRole]);
+  }, [authorizedLeads, search, statusFilters, managerFilter, bookingDateFilter, createdAtFilter, depositFilter, currentUserRole]);
 
-  const hasActiveFilters = !!dateFilter || managerFilter !== 'all' || statusFilter !== 'all' || search || depositFilter !== 'all';
+  const defaultCreatedAt = todayMsk();
+  const hasActiveFilters = !!bookingDateFilter || createdAtFilter !== defaultCreatedAt || managerFilter !== 'all' || statusFilters.size > 0 || !!search || depositFilter !== 'all';
 
   const resetFilters = () => {
-    setDateFilter(todayMsk());
+    setBookingDateFilter('');
+    setCreatedAtFilter(defaultCreatedAt);
     setManagerFilter('all');
-    setStatusFilter('all');
+    setStatusFilters(new Set());
     setSearch('');
     setDepositFilter('all');
   };
@@ -288,59 +308,72 @@ export default function LeadList({
     <div className="space-y-6">
 
       {/* Search & Filters */}
-      <div className="spatial-glass rounded-2xl p-5 flex flex-col gap-4 relative transition-all duration-300">
-        <div className="absolute -left-20 -bottom-20 w-44 h-44 bg-neutral-200/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="spatial-glass rounded-2xl p-4 flex flex-col gap-3 relative">
 
         {/* Search */}
-        <div className="relative flex-1 z-10">
-          <Search className="absolute left-4 top-3.5 w-4 h-4 text-neutral-450" />
+        <div className="relative z-10">
+          <Search className="absolute left-3.5 top-3 w-3.5 h-3.5 text-neutral-400" />
           <input
             type="text"
             placeholder="Поиск по клиенту, телефону или номеру сделки AmoCRM..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 text-xs bg-white/40 focus:bg-white/80 border border-neutral-150/60 text-neutral-850 placeholder-neutral-400 rounded-xl focus:outline-hidden focus:border-neutral-900 transition-all duration-350 font-semibold shadow-3xs"
+            className="w-full pl-10 pr-4 py-2.5 text-xs bg-white/50 focus:bg-white/90 border border-neutral-200/60 text-neutral-850 placeholder-neutral-400 rounded-xl focus:outline-hidden focus:border-neutral-400 transition-all duration-200 font-semibold shadow-3xs"
           />
         </div>
 
-        {/* Filters row */}
-        <div className="flex flex-wrap items-center gap-3 z-10">
+        {/* Row 1: dates + manager + reset */}
+        <div className="flex flex-wrap items-center gap-2 z-10">
+          <FilterDatePicker label="Создана" value={createdAtFilter} onChange={setCreatedAtFilter} />
+          <FilterDatePicker label="Визит" value={bookingDateFilter} onChange={setBookingDateFilter} />
 
-          {/* Date picker */}
-          <FilterDatePicker value={dateFilter} onChange={setDateFilter} />
-
-          {/* Manager filter (admin only) */}
           {currentUserRole === 'admin' && (
             <div className="relative flex items-center">
               <select
                 value={managerFilter}
                 onChange={(e) => setManagerFilter(e.target.value)}
-                className="text-xs font-bold pl-4 pr-8 py-2.5 bg-white/40 focus:bg-white/85 border border-neutral-150/60 rounded-xl focus:border-neutral-900 focus:outline-hidden text-neutral-800 cursor-pointer shadow-3xs transition-all duration-300 appearance-none"
+                className={`text-[10px] font-bold pl-3 pr-7 py-2 border rounded-xl focus:outline-hidden cursor-pointer shadow-3xs transition-all duration-150 appearance-none ${
+                  managerFilter !== 'all'
+                    ? 'bg-neutral-950 text-white border-neutral-950'
+                    : 'bg-white/60 hover:bg-white border-neutral-200/70 text-neutral-600'
+                }`}
               >
                 <option value="all">Все менеджеры</option>
                 {uniqueManagers.map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2.5 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
+              <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${managerFilter !== 'all' ? 'text-white/60' : 'text-neutral-400'}`} />
             </div>
           )}
 
-          {/* Status pills */}
-          <div className="flex bg-white/80 p-1 rounded-xl border border-neutral-200/50 overflow-x-auto gap-1 self-stretch scrollbar-none shadow-3xs">
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="ml-auto text-[9.5px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-800 transition-colors px-3 py-2 border border-neutral-200/60 rounded-xl bg-white/50 cursor-pointer"
+            >
+              Сбросить
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: status group + deposit group — each wraps as a unit */}
+        <div className="flex flex-wrap gap-2 z-10">
+
+          {/* Status group */}
+          <div className="flex bg-white/70 border border-neutral-200/60 rounded-xl p-1 gap-1 shadow-3xs">
             {[
-              { id: 'all', label: 'Все' },
-              { id: 'booked', label: 'Ожидает' },
-              { id: 'showed_up', label: 'Пришли' },
-              { id: 'no_show', label: 'Не пришли' },
+              { id: 'waiting', label: 'Ждём визит' },
+              { id: 'showed_up', label: 'Пришёл' },
+              { id: 'no_show', label: 'Не пришёл' },
             ].map(btn => (
               <button
                 key={btn.id}
-                onClick={() => setStatusFilter(btn.id)}
-                className={`px-4 py-2 rounded-lg text-[9.5px] font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer whitespace-nowrap select-none ${
-                  statusFilter === btn.id
-                    ? 'bg-neutral-950 text-white shadow-sm font-extrabold'
-                    : 'text-neutral-500 hover:text-neutral-950 hover:bg-neutral-100/50'
+                onClick={() => toggleStatus(btn.id)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 cursor-pointer whitespace-nowrap select-none ${
+                  statusFilters.has(btn.id)
+                    ? 'bg-neutral-950 text-white'
+                    : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
                 }`}
               >
                 {btn.label}
@@ -348,39 +381,28 @@ export default function LeadList({
             ))}
           </div>
 
-          {/* Deposit filter — admin only */}
-          {currentUserRole === 'admin' && (
-            <div className="flex bg-white/80 p-1 rounded-xl border border-neutral-200/50 overflow-x-auto gap-1 self-stretch scrollbar-none shadow-3xs">
-              {([
-                { id: 'all', label: 'Все' },
-                { id: 'paid', label: 'Предоплата внесена' },
-                { id: 'not_paid', label: 'Без предоплаты' },
-              ] as { id: 'all' | 'paid' | 'not_paid'; label: string }[]).map(btn => (
-                <button
-                  key={btn.id}
-                  onClick={() => setDepositFilter(btn.id)}
-                  className={`px-4 py-2 rounded-lg text-[9.5px] font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer whitespace-nowrap select-none flex items-center gap-1.5 ${
-                    depositFilter === btn.id
-                      ? 'bg-neutral-950 text-white shadow-sm font-extrabold'
-                      : 'text-neutral-500 hover:text-neutral-950 hover:bg-neutral-100/50'
-                  }`}
-                >
-                  {btn.id === 'paid' && <Banknote className="w-3 h-3 shrink-0" />}
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Reset */}
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-950 transition px-3 py-2 border border-neutral-200/50 rounded-xl bg-white/40 cursor-pointer"
-            >
-              Сбросить
-            </button>
-          )}
+          {/* Deposit group */}
+          <div className="flex bg-white/70 border border-neutral-200/60 rounded-xl p-1 gap-1 shadow-3xs">
+            {([
+              { id: 'all', label: 'Предоплата: все' },
+              { id: 'paid', label: 'Внесена' },
+              { id: 'not_paid', label: 'Не внесена' },
+              { id: 'not_required', label: 'Не требуется' },
+            ] as { id: 'all' | 'paid' | 'not_paid' | 'not_required'; label: string }[]).map(btn => (
+              <button
+                key={btn.id}
+                onClick={() => setDepositFilter(btn.id)}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors duration-150 cursor-pointer whitespace-nowrap select-none flex items-center gap-1 ${
+                  depositFilter === btn.id
+                    ? 'bg-neutral-950 text-white'
+                    : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/60'
+                }`}
+              >
+                {btn.id === 'paid' && <Banknote className="w-3 h-3 shrink-0" />}
+                {btn.label}
+              </button>
+            ))}
+          </div>
 
         </div>
       </div>
@@ -415,105 +437,112 @@ export default function LeadList({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                  className="spatial-glass rounded-2xl p-6 relative shadow-3xs"
+                  className="spatial-glass rounded-2xl p-5 relative shadow-3xs"
                 >
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-5 relative z-10">
+                  <div className="flex flex-col gap-3 relative z-10">
 
-                    <div className="space-y-4 flex-1 min-w-0">
-
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-display font-semibold text-neutral-950 text-sm tracking-tight leading-none">
+                    {/* Row 1: name + creation date + actions */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="font-display font-bold text-neutral-950 text-base tracking-tight leading-tight truncate">
                           {lead.clientName}
                         </span>
-
-                        <span className={`px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg border flex items-center gap-1.5 shrink-0 shadow-4xs transition-all duration-300 ${statusConfig.colorClasses}`}>
-                          <StatusIcon className="w-3.5 h-3.5" />
-                          {statusConfig.text}
-                        </span>
-
-                        {lead.isReferral && (
-                          <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-amber-50 text-amber-700 border-amber-200">
-                            <Star className="w-3 h-3 shrink-0" />
-                            По рекомендации
-                          </span>
-                        )}
-
-                        {lead.amocrmLeadId && (
-                          <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs transition-all duration-300 ${
-                            lead.yookassaPaid
-                              ? 'bg-violet-50 text-violet-700 border-violet-200'
-                              : 'bg-white/60 text-neutral-400 border-neutral-200/50'
-                          }`}>
-                            <Banknote className="w-3 h-3 shrink-0" />
-                            {lead.yookassaPaid
-                              ? <><span>Предоплата:</span><span>{lead.yookassaAmount ? `${lead.yookassaAmount.toLocaleString('ru')} ₽` : 'внесена'}</span></>
-                              : <span>Предоплата не поступала</span>
-                            }
+                        {lead.createdAt && (
+                          <span className="text-[10px] text-neutral-400 font-medium">
+                            Создана {new Date(lead.createdAt).toLocaleDateString('ru-RU')}
                           </span>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2.5 gap-x-4 text-[11px] text-neutral-450 font-medium">
-
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-neutral-400 shrink-0" />
-                          <span>Дата записи: <strong className="text-neutral-750 font-semibold">{new Date(lead.bookingDate).toLocaleDateString('ru-RU')}</strong></span>
-                        </div>
-
-                        {lead.clientPhone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-neutral-400 shrink-0" />
-                            <a
-                              href={`tel:${lead.clientPhone}`}
-                              className="font-semibold text-neutral-600 hover:text-neutral-950 transition-colors"
+                      {(currentUserRole === 'admin' || shiftActive !== false) && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => onEdit(lead)}
+                            className="px-3 py-2 bg-white/70 border border-neutral-200 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 text-[10px] font-bold uppercase tracking-wider text-neutral-600 rounded-xl cursor-pointer transition-colors duration-150 flex items-center gap-1.5 shadow-4xs"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Изменить
+                          </button>
+                          {deletable && (
+                            <button
+                              onClick={() => lead.id && onDelete(lead.id)}
+                              className="p-2 border border-neutral-150/50 bg-white/40 hover:bg-rose-500 hover:text-white text-neutral-400 rounded-xl shadow-3xs transition-colors duration-150 cursor-pointer"
+                              title="Удалить"
                             >
-                              {lead.clientPhone}
-                            </a>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-neutral-400 shrink-0" />
-                          <span>Менеджер: <strong className="text-neutral-750 font-semibold">{lead.managerName}</strong></span>
-                        </div>
-
-                        {lead.amocrmLeadId && (
-                          <div className="flex items-center gap-2 sm:col-span-3 pt-1">
-                            <span className="text-[8px] font-bold uppercase tracking-wider text-neutral-500 bg-white/70 border border-neutral-150/50 px-2 py-0.5 rounded shadow-3xs leading-none">
-                              ID Сделки AmoCRM
-                            </span>
-                            <span className="text-neutral-750 font-mono text-xs select-all">#{lead.amocrmLeadId}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {lead.comments && (
-                        <div className="bg-neutral-50/60 p-3.5 rounded-xl border border-neutral-150/45 text-xs text-neutral-500 leading-relaxed shadow-3xs">
-                          <span className="font-bold block text-[8.5px] uppercase tracking-wider text-neutral-400 mb-1">Комментарий:</span>
-                          {lead.comments}
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {(currentUserRole === 'admin' || shiftActive !== false) && (
-                      <div className="flex items-center gap-2 self-end md:self-start shrink-0 pt-2 md:pt-0">
-                        <button
-                          onClick={() => onEdit(lead)}
-                          className="px-3.5 py-2.5 bg-white/70 border border-neutral-200 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 active:scale-95 text-[10.5px] font-bold uppercase tracking-wider text-neutral-600 rounded-xl cursor-pointer transition-all duration-300 flex items-center gap-1.5 shadow-4xs"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Изменить
-                        </button>
+                    {/* Row 2: status + deposit badges */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg border flex items-center gap-1.5 shrink-0 shadow-4xs ${statusConfig.colorClasses}`}>
+                        <StatusIcon className="w-3 h-3" />
+                        {statusConfig.text}
+                      </span>
 
-                        {deletable && (
-                          <button
-                            onClick={() => lead.id && onDelete(lead.id)}
-                            className="p-2.5 border border-neutral-150/50 bg-white/40 hover:bg-rose-500 hover:text-white active:scale-95 text-neutral-400 rounded-xl shadow-3xs transition-all duration-300 cursor-pointer"
-                            title="Удалить"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                      {lead.isReferral && (
+                        <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-amber-50 text-amber-700 border-amber-200">
+                          <Star className="w-3 h-3 shrink-0" />
+                          По рекомендации
+                        </span>
+                      )}
+
+                      {lead.depositRequired ? (
+                        <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs ${
+                          lead.yookassaPaid
+                            ? 'bg-violet-50 text-violet-700 border-violet-200'
+                            : 'bg-orange-50 text-orange-600 border-orange-200'
+                        }`}>
+                          <Banknote className="w-3 h-3 shrink-0" />
+                          {lead.yookassaPaid
+                            ? (lead.yookassaAmount ? `Предоплата: ${lead.yookassaAmount.toLocaleString('ru')} ₽` : 'Предоплата внесена')
+                            : 'Предоплата не поступала'
+                          }
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 text-[9px] font-medium rounded-lg border shrink-0 flex items-center gap-1.5 bg-neutral-50 text-neutral-400 border-neutral-200/50">
+                          Без предоплаты
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Row 3: key info */}
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-neutral-500 font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                        <span>Визит <strong className="text-neutral-750">{new Date(lead.bookingDate).toLocaleDateString('ru-RU')}</strong></span>
+                      </div>
+
+                      {lead.clientPhone && (
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                          <a href={`tel:${lead.clientPhone}`} className="font-semibold text-neutral-600 hover:text-neutral-950 transition-colors">
+                            {lead.clientPhone}
+                          </a>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-neutral-350 shrink-0" />
+                        <span>{lead.managerName}</span>
+                      </div>
+
+                      {lead.amocrmLeadId && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
+                          <span className="font-mono text-neutral-600 select-all">#{lead.amocrmLeadId}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Comment */}
+                    {lead.comments && (
+                      <div className="bg-neutral-50/70 px-3.5 py-3 rounded-xl border border-neutral-150/45 text-[11px] text-neutral-500 leading-relaxed shadow-3xs">
+                        <span className="font-bold text-[8.5px] uppercase tracking-wider text-neutral-400 mr-2">Комментарий:</span>
+                        {lead.comments}
                       </div>
                     )}
 

@@ -22,21 +22,12 @@ export interface LeadReport {
 }
 
 export interface CommissionRules {
-  perShowUpHigh: number;  // ставка за визит при ПО > порога
-  perShowUpLow:  number;  // ставка за визит при ПО ≤ порога
-  perPoHigh:     number;  // ставка за запись при ПО > порога
-  perPoLow:      number;  // ставка за запись при ПО ≤ порога
-  hourlyRate:    number;  // ставка за час работы
-  poThreshold:   number;  // порог ПО для смены ставок
-}
-
-export interface DbStatus {
-  provider: 'local' | 'postgres';
-  configured: boolean;
-  error?: string;
-  connectionInfo?: string;
-  tableName: string;
-  geminiActive: boolean;
+  perShowUpHigh: number;
+  perShowUpLow:  number;
+  perPoHigh:     number;
+  perPoLow:      number;
+  hourlyRate:    number;
+  poThreshold:   number;
 }
 
 export interface StaffMember {
@@ -45,8 +36,6 @@ export interface StaffMember {
   role: 'admin' | 'manager';
   pin: string;
   department: string;
-  status: 'online' | 'offline';
-  lastActive: string;
 }
 
 export interface ShiftSession {
@@ -59,7 +48,7 @@ export interface ShiftSession {
 }
 
 export interface CheckinLead extends LeadReport {
-  yclientsAttendance: number | null; // 1=пришёл, -1=не пришёл, 0=ожидание, 2=отменено
+  yclientsAttendance: number | null;
   yclientsStaff: string | null;
   yookassaPaid: boolean;
   yookassaAmount: number | null;

@@ -53,8 +53,6 @@ export default function UserManagementPage({ allUsers, currentUserName, onRefres
         role: form.role,
         pin: form.pin,
         department: form.department,
-        status: editingUser?.status || 'offline',
-        lastActive: editingUser?.lastActive || 'Не в сети',
       });
       setSuccess(editingUser ? 'Сотрудник обновлён' : 'Сотрудник зарегистрирован');
       await onRefresh();

@@ -125,11 +125,16 @@ export default function ShiftWidget({ managerName, onShiftChange }: Props) {
   const endShift = async () => {
     setBusy(true);
     try {
-      const { workedSeconds } = await api.shifts.end(managerName);
+      await api.shifts.end(managerName);
       if (tickRef.current) clearInterval(tickRef.current);
-      const newTotal = anchorRef.current.total + (workedSeconds ?? 0);
-      anchorRef.current = { time: Date.now(), total: newTotal, breakSec: 0, onBreak: false };
-      setElapsed(newTotal);
+      // Freeze the timer at the value it was showing — do NOT add workedSeconds
+      // from the server because anchorRef.current.total already includes all
+      // prior time (the server merges sessions on reopen, making workedSeconds
+      // equal to the full total, which would double-count if added again).
+      const delta = Math.floor((Date.now() - anchorRef.current.time) / 1000);
+      const frozenTotal = anchorRef.current.total + delta;
+      anchorRef.current = { time: Date.now(), total: frozenTotal, breakSec: 0, onBreak: false };
+      setElapsed(frozenTotal);
       setState('idle');
       setSession(null);
       setBreakSec(0);

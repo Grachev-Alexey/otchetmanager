@@ -51,10 +51,6 @@ export const api = {
       request<{ success: boolean; user: StaffMember }>('/api/auth/login', {
         method: 'POST', body: JSON.stringify({ pin, ...(name ? { name } : {}) }),
       }),
-    logout: (name: string) =>
-      request<{ success: boolean }>('/api/auth/logout', { method: 'POST', body: JSON.stringify({ name }) }),
-    heartbeat: (name: string) =>
-      request<{ success: boolean }>('/api/auth/heartbeat', { method: 'POST', body: JSON.stringify({ name }) }),
   },
 
   checkin: {

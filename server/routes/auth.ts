@@ -48,54 +48,16 @@ router.post('/login', async (req, res) => {
     const row = result.rows[0];
     const matchedUser = {
       id: row.id ? Number(row.id) : undefined,
-      name: row.name, role: row.role, pin: row.pin,
-      department: row.department, status: 'online', lastActive: 'В сети',
+      name: row.name,
+      role: row.role,
+      pin: row.pin,
+      department: row.department,
     };
-    await db.pool.query(
-      'UPDATE marketing_users SET status = $1, last_active = $2, last_seen_at = NOW() WHERE name = $3',
-      ['online', 'В сети', row.name]
-    );
     return res.json({ success: true, user: matchedUser });
   } catch (err: any) {
     console.error('[Auth] DB login error:', err);
     return res.status(500).json({ success: false, error: 'Ошибка базы данных' });
   }
-});
-
-// POST /api/auth/logout
-router.post('/logout', async (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.json({ success: true });
-  if (!db.pool || !db.isConnected) return res.json({ success: true });
-
-  try {
-    await db.pool.query(
-      `UPDATE marketing_users
-       SET status = 'offline', last_active = $1, last_seen_at = NULL
-       WHERE name = $2`,
-      [new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ' назад', name]
-    );
-  } catch (err) {
-    console.error('[Auth] DB logout error:', err);
-  }
-  res.json({ success: true });
-});
-
-// POST /api/auth/heartbeat
-router.post('/heartbeat', async (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ success: false });
-  if (!db.pool || !db.isConnected) return res.json({ success: true });
-
-  try {
-    await db.pool.query(
-      `UPDATE marketing_users SET last_seen_at = NOW(), status = 'online', last_active = 'В сети' WHERE name = $1`,
-      [name]
-    );
-  } catch (err) {
-    console.error('[Auth] Heartbeat error:', err);
-  }
-  res.json({ success: true });
 });
 
 export default router;

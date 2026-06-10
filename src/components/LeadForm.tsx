@@ -402,7 +402,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
 
         {/* Deposit — admin only */}
         {currentUserRole === 'admin' && (
-          <div className="bg-neutral-50 border border-neutral-100 p-4 rounded-2xl">
+          <div className="border p-4 rounded-2xl bg-neutral-50 border-neutral-100">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <div className="relative">
                 <input type="checkbox" checked={depositRequired}

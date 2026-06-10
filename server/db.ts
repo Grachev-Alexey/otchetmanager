@@ -92,11 +92,6 @@ export async function bootstrapDb(): Promise<void> {
         ADD COLUMN IF NOT EXISTS visit_cost NUMERIC(12,2) DEFAULT 2090
     `);
 
-    await client.query(`
-      ALTER TABLE marketing_users
-        ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
-    `);
-
     // Migrate PK from name → id (run once: only if id column absent)
     await client.query(`
       DO $$

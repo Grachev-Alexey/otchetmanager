@@ -32,8 +32,9 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
   const myLeads          = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
   const totalCount       = myLeads.length;
   const showUps          = myLeads.filter(l => l.status === 'showed_up').length;
-  const regularDeposits  = myLeads.filter(l => l.depositPaid && !l.isReferral).length;
-  const referralDeposits = myLeads.filter(l => l.depositPaid && l.isReferral).length;
+  // showed_up counts as both a visit AND a deposit (client arrived = deposit credit)
+  const regularDeposits  = myLeads.filter(l => (l.depositPaid || l.status === 'showed_up') && !l.isReferral).length;
+  const referralDeposits = myLeads.filter(l => (l.depositPaid || l.status === 'showed_up') && l.isReferral).length;
   const deposits         = regularDeposits + referralDeposits;
   const weightedDeposits = regularDeposits + referralDeposits * 2;
   const depositSum       = myLeads.reduce((s, l) => s + (l.depositPaid ? l.depositAmount : 0), 0);
@@ -207,7 +208,7 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
               const ml        = leads.filter(l => l.managerName === manager.name);
               const bookings  = ml.length;
               const showUpsM  = ml.filter(l => l.status === 'showed_up').length;
-              const deps      = ml.filter(l => l.depositRequired && l.depositPaid).length;
+              const deps      = ml.filter(l => l.depositPaid || l.status === 'showed_up').length;
               const mHours    = allHours[manager.name] ?? 0;
               const sal       = calcSalary(showUpsM, deps, mHours, rules);
               const over      = deps > (rules.poThreshold ?? 140);
