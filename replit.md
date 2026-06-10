@@ -124,7 +124,25 @@ npm run dev   # Express + Vite на порту 5000
 ---
 
 #### `yclients_record` — 110 952 строк
-Записи из Yclients. `record_id`, `client_name`, `client_phone`, `date_visit`, `staff_name`, `attendance`, `company_id` и др.
+Записи из Yclients.
+
+| Колонка | Тип | Описание |
+|---|---|---|
+| `record_id` | BIGINT PK | ID записи |
+| `client_name` | VARCHAR | Имя клиента |
+| `client_phone` | VARCHAR | Телефон клиента |
+| `date_visit` | TIMESTAMP | Дата и время визита |
+| `attendance` | INT | Статус: 1=пришёл, -1=не пришёл, 0=ожидание, 2=подтвердил |
+| `staff_name` | VARCHAR | Мастер |
+| `staff_id` | BIGINT | ID мастера |
+| `company_id` | BIGINT | ID салона |
+| `client_id` | BIGINT | ID клиента |
+| `deleted` | BOOL | Запись удалена (не `is_deleted`!) |
+| `visit_id` | BIGINT | ID визита |
+| `success_visits` | INT | Успешных визитов |
+| `fail_visits` | INT | Неудачных визитов |
+| `create_date` | TIMESTAMP | Дата создания |
+| `last_change_date` | TIMESTAMP | Дата последнего изменения |
 
 ---
 

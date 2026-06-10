@@ -225,7 +225,15 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
     const diffDays = Math.round((booking.getTime() - today.getTime()) / 86400000);
     return diffDays > 3;
   }
-  const depositRequired = calcDepositRequired(bookingDate);
+  const isEditMode = useRef(!!initialLead);
+  const [depositRequired, setDepositRequired] = useState<boolean>(
+    initialLead ? (initialLead.depositRequired ?? false) : calcDepositRequired(bookingDate)
+  );
+  useEffect(() => {
+    if (!isEditMode.current) {
+      setDepositRequired(calcDepositRequired(bookingDate));
+    }
+  }, [bookingDate]);
   const [isReferral, setIsReferral] = useState(initialLead?.isReferral || false);
   const [visitCost, setVisitCost] = useState(initialLead?.visitCost ?? 2090);
   const [comments, setComments] = useState(initialLead?.comments || '');
@@ -408,22 +416,26 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
           </div>
         </div>
 
-        {/* Deposit — auto-calculated from booking date */}
+        {/* Deposit */}
         <div className="border p-4 rounded-2xl bg-neutral-50 border-neutral-100">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-neutral-700">Предоплата</span>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-              depositRequired
-                ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
-                : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
-            }`}>
+            <button
+              type="button"
+              onClick={() => setDepositRequired(v => !v)}
+              className={`text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-colors duration-150 ${
+                depositRequired
+                  ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
+                  : 'bg-neutral-100 text-neutral-400 border border-neutral-200 hover:bg-neutral-200'
+              }`}
+            >
               {depositRequired ? 'Обязательна' : 'Не нужна'}
-            </span>
+            </button>
           </div>
           <p className="mt-1.5 text-[11px] text-neutral-400">
             {depositRequired
-              ? 'Дата визита больше 3 дней — предоплата обязательна'
-              : 'Ближайшие 3 дня — предоплата не требуется'
+              ? 'Предоплата обязательна (нажмите чтобы изменить)'
+              : 'Предоплата не требуется (нажмите чтобы изменить)'
             }
           </p>
 

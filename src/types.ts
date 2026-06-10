@@ -47,10 +47,18 @@ export interface ShiftSession {
   totalBreakSecs: number;
 }
 
+export interface YclientsService {
+  name: string;
+  price: number;
+  paid: number | null;
+}
+
 export interface CheckinLead extends LeadReport {
   yclientsAttendance: number | null;
   yclientsStaff: string | null;
   yclientsDeleted: boolean | null;
+  yclientsDate: string | null;
+  yclientsServices: YclientsService[] | null;
   yookassaPaid: boolean;
   yookassaAmount: number | null;
 }

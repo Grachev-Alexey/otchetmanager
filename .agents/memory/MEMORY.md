@@ -3,3 +3,4 @@
 - [Commission formula](commission-formula.md) — new formula: showUps×visitRate + hours×85 + bookings×poRate; rates conditional on poThreshold (default 140).
 - [Shift tracking](shift-tracking.md) — work_sessions table; client-only timer (setInterval); ShiftWidget in Sidebar for managers only; 7 API endpoints under /api/shifts.
 - [Performance optimizations](perf-optimizations.md) — server/cache.ts (TTL cache); ETag headers on leads/rules/users; in-flight deduplication in useData; 50-item pagination + debounce in LeadList; poll 60s.
+- [Checkin page quirks](checkin-quirks.md) — yclients_record uses `deleted` (bool), NOT `is_deleted`. depositRequired must be stateful in LeadForm (not derived). Checkin includes today (`<=`). Services: show only oplata>0.

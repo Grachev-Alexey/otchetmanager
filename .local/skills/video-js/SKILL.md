@@ -49,9 +49,8 @@ The video auto-plays on mount and loops continuously. Zero user interaction. If 
 Before writing any code, establish your creative direction:
 
 1. **Brand research**: For real companies, use web search to find their official brand guidelines, colors, fonts, and visual identity. Use their real palette and typography - don't guess. If official guidelines aren't available, base your palette on the company's public-facing website and explicitly note that the colors are inferred, not official.
-2. **Attached-asset palette extraction (do this BEFORE picking colors)**: If the user attached a logo, brand mark, product shot, or any visual asset, **open the file and read the actual colors off of it** -- those colors ARE the brand. Do not invent a palette that ignores them, and do not pick a "vibe palette" (e.g. "premium = black + red") that conflicts with what's in the asset. Sample the dominant hue, the secondary hue, and any accent colors from the asset itself, then state them as hex codes. Your `--color-primary` should match or harmonize with the logo's primary color, not fight it. If the user described a vibe that conflicts with the logo's palette (e.g. "intense / aggressive" but the logo is forest green and cream), honor the logo first and express the vibe through typography, motion, pacing, and imagery -- not by overriding the brand color. When in doubt, the attached asset wins.
-3. **Color palette**: Pick a bold, intentional palette that pops. State exact hex codes. You want 1 primary, 1 accent, 1-2 neutrals, and a background tone. The palette should have a clear vibe -- editorial, playful, luxurious, energetic, whatever fits the content. Avoid generic or muddy colors. Every color should feel like a deliberate choice. Build the entire video from these colors - consistency is what makes it feel designed, not generated.
-4. **Typography**: Pick ONE display font + ONE body font from Google Fonts. Max 2 fonts. Avoid system fonts. Analyze the emotional goal of the video, then select fonts that amplify it:
+2. **Color palette**: Pick a bold, intentional palette that pops. State exact hex codes. You want 1 primary, 1 accent, 1-2 neutrals, and a background tone. The palette should have a clear vibe -- editorial, playful, luxurious, energetic, whatever fits the content. Avoid generic or muddy colors. Every color should feel like a deliberate choice. Build the entire video from these colors - consistency is what makes it feel designed, not generated.
+3. **Typography**: Pick ONE display font + ONE body font from Google Fonts. Max 2 fonts. Avoid system fonts. Analyze the emotional goal of the video, then select fonts that amplify it:
    - Trust/Authority -> strong geometric sans (e.g., `Plus Jakarta Sans`, `Satoshi`)
    - Excitement/Energy -> condensed bold display (e.g., `Bebas Neue`, `Anton`)
    - Luxury/Premium -> refined serif or high-contrast sans (e.g., `Cormorant Garamond`, `Playfair Display`)
@@ -59,7 +58,7 @@ Before writing any code, establish your creative direction:
    - Playful/Creative -> rounded or expressive (e.g., `Nunito`, `Baloo 2`)
    - Editorial/Culture -> elegant serif + clean sans (e.g., `Fraunces` + `Inter`)
    The font IS the personality of the video. A wrong font choice undermines everything else.
-5. **Motion direction**: Pick a specific aesthetic direction and commit. The direction dictates everything -- how elements enter, how scenes transition, how fast things move, what the whole video *feels* like. Some examples to spark your thinking:
+4. **Motion direction**: Pick a specific aesthetic direction and commit. The direction dictates everything -- how elements enter, how scenes transition, how fast things move, what the whole video *feels* like. Some examples to spark your thinking:
    - **Cinematic Minimal** -- slow reveals, massive type, black + one accent, lots of negative space, editorial pacing
    - **Kinetic Energy** -- fast cuts, bold color, rapid stagger animations, high contrast, energetic springs
    - **Luxury/Editorial** -- refined serifs, smooth ease curves, muted tones, subtle parallax, gold/cream accents
@@ -67,44 +66,9 @@ Before writing any code, establish your creative direction:
    - **Playful/Pop** -- rounded fonts, bouncy springs, saturated colors, shape morphs, playful character animation
    - **Abstract/Atmospheric** -- particle systems, generative shapes, slow drifting motion, ambient textures, ethereal
    These are just starting points -- invent your own direction if the content calls for something different. The point is to have a nameable aesthetic, not a vague "clean and modern."
-6. **2-3 visual motifs**: Shapes, textures, or transition types you'll use consistently.
-7. **Director's treatment**: Write 4 bullets describing the vibe/mood, camera movement style, emotional arc, and **pacing shape** -- declare the rhythm in one sentence (e.g. "slow build for 8s → 4 quick cuts in 4s → held 6s atmospheric → 4s resolve" or "metronomic 3s beats throughout" or "one held 20s shot bookended by 5s opens"). The pacing shape gives durations a deliberate curve instead of being uniform or random.
-
-8. **Shot list (do this BEFORE defining `SCENE_DURATIONS`)**: Write a beat-by-beat list of every shot in the video, with intended duration for each. **This is the load-bearing step** -- it's how real directors work, and it's how you avoid the "5 equal scenes" default that makes videos feel like animated presentations. Each beat is one visual idea: a held shot, a cut, a reveal, an atmospheric moment, a logo flash. Beat counts and durations should vary widely based on the brief.
-
-   Rough guidance (these are ranges, not formulas -- the brief decides):
-   - **Cinematic Minimal / Luxury / Editorial** -- fewer, longer beats. A 30s piece might be 4-6 beats with several 5-8s held shots.
-   - **Kinetic Energy / Athletic / Nike-style** -- many beats with high variance. A 30s piece might be 10-15 beats ranging from 0.5s flashes to 6s held hero shots.
-   - **Tech Product / Explainer** -- moderate beat count with rhythmic groupings. A 30s piece might be 6-9 beats clustered into 2-3 acts.
-   - **Playful/Pop** -- many short beats, bouncy springs, frequent transitions. A 30s piece might be 12+ beats most under 2s.
-   - **Abstract/Atmospheric** -- very few beats, very long durations. A 30s piece might be 2-3 beats, one of them 15-20s.
-
-   Format:
-
-   ```text
-   B1  Black hold                           0.8s
-   B2  Hand on grip, slow push              3.5s
-   B3  Quick cut: sneaker on court          0.6s
-   B4  Wide court, golden hour, held        6.0s
-   B5  Smash, sharp cut                     0.9s
-   B6  Smash slow-mo continuation           2.2s
-   B7  Sweat detail                         1.5s
-   B8  Wordmark fade-in                     4.5s
-   ...
-   Total: ~30s, 8 beats, range 0.6-6.0s
-   ```
-
-   The shot list must sum to the requested video length (±5%). If your beats are all the same duration, your shot list is a template, not a treatment -- rewrite it with real pacing.
-
-9. **Map beats to scene components (beats and scenes are NOT 1:1)**: The shot list is the creative unit; `SCENE_DURATIONS` is the implementation grouping. A "scene component" is a React file with its own `AnimatePresence` lifecycle and phase setTimeouts -- it can contain multiple beats internally. Sub-second beats (0.5-1.5s flashes, micro-cuts) should almost never be standalone scene components -- transition durations alone would eat the runtime. Group rapid-cut sequences into a single multi-beat scene component that handles its own internal phase changes.
-
-   - A held 6s atmospheric shot → one scene, 6000ms.
-   - A 3-beat rapid-cut sequence (0.8s + 0.6s + 0.9s) → one scene, ~2300ms, with three internal phases.
-   - A long held shot with a stat reveal at 4s → one scene, 8000ms, with two phases.
-
-   Decide the grouping based on what shares a background/camera setup -- beats that live on the same backdrop usually belong in the same scene component. The resulting scene count will vary with the brief (commonly 3-9 scenes for a 30-60s video). Do NOT default to a round number like 5 because it's "safe."
-
-10. **Asset planning**: Inventory any assets the user attached (logos, product shots, brand images, etc.) and decide where each one appears in the shot list. Then plan what additional images, textures, or video clips you need — AI-generated images, stock photos, and AI-generated video clips — to fill the remaining beats. Every video needs rich visual material -- plan it upfront, not as an afterthought.
+5. **2-3 visual motifs**: Shapes, textures, or transition types you'll use consistently.
+6. **Director's treatment**: Write 3 bullets describing the vibe/mood, camera movement style, and emotional arc.
+7. **Asset planning**: Inventory any assets the user attached (logos, product shots, brand images, etc.) and decide where each one appears in the video. Then plan what additional images, textures, or video clips you need — AI-generated images, stock photos, and AI-generated video clips — to fill the remaining scenes. Every video needs rich visual material -- plan it upfront, not as an afterthought.
 
 Commit to a direction and execute. Don't overthink.
 </before_you_start>
@@ -121,38 +85,10 @@ Before coding, define your motion system. This is what separates a coherent vide
 Define these once, apply them everywhere. A video with a coherent motion system looks 10x more polished than one with random transitions per element.
 </motion_system>
 
-<composition>
-How you frame and stage scenes matters as much as how things move. Treat composition as a first-class design decision, not an afterthought:
-
-- **Use the full frame.** Don't pack content into a centered rectangle. Let elements live near edges, bleed off the canvas, or claim large regions of negative space.
-- **Vary layout across scenes** -- centered, asymmetric, and off-axis compositions can all coexist in one animation. A video where every scene is centered reads as a template.
-- **Group related elements loosely** rather than aligning everything to tight grids. Loose grouping feels editorial; rigid grids feel corporate.
-- **Use containment as contrast** -- a tight, dense element next to open space reads differently than a frame where everything is equally dense. Density variation creates rhythm.
-- **Prefer pans over pull-back reveals.** Pull-backs reduce the scale of everything on screen and make the viewer feel further from the content. Pans keep scale and intimacy intact.
-- **Vary camera moves across scenes** -- mix pans, dolly-ins, static holds, and parallax pushes. A single camera move repeated across every scene flattens the piece.
-</composition>
-
 <resolution>
 Videos should be composed for **16:9 aspect ratio**. Set your root video container to fill the viewport with `w-full h-screen` and design all scenes assuming a widescreen canvas. Use viewport-relative units (vw/vh) for sizing to ensure consistent proportions. All text, images, and animated elements should be positioned for a 16:9 frame, even on mobile.
 </resolution>
-<scale_and_legibility>
-**Scale:**
 
-- Elements should fill the available frame. A common problem is everything being generated too small — text, graphics, and UI elements clustered in the center at a fraction of the available space.
-- Check legibility at the final camera pose, not the opening tight framing. If text becomes unreadable at the widest shot, either adjust the camera or increase the size.
-- Avoid type below 10px at final scale on 1080p.
-
-**Legibility (every text element must pass these checks against its actual rendered background):**
-
-This is non-negotiable. "Editorial," "atmospheric," and "moody" are not excuses for unreadable text. The audience must be able to read every line at first glance, in motion, on a 1080p screen, without leaning in. If a line of text is *meant* to be decorative (a watermark, an ambient background word), label it as such in your composition and treat it as a graphic element — but do not let it sit in the same visual register as a headline.
-
-- **No stroke-only / outline-only text over imagery, video, or busy gradients.** Outline type only works on a clean, contrasting solid surface. Over photos, video clips, or layered backgrounds, it disappears. If you want the outlined-display look, place it on a flat panel of color or pair it with a solid-fill duplicate.
-- **No primary text below 70% opacity.** Headlines, sublines, captions, and any line the viewer is meant to *read* must use a solid (or near-solid) fill. Low-opacity fills are reserved for explicitly decorative type (watermarks, ambient background words at <25% — and those must NOT carry the message).
-- **Every headline must pass a contrast check against the layer it actually sits on, not the base background color.** A cream headline on a forest-green base looks fine in the abstract, but if there is a generated image, video clip, or radial-gradient blob layered between them, the headline is competing with that, not the base. Test the actual final composition. If contrast is borderline, add a subtle drop shadow, a darkening vignette behind the type, or a flat color panel under it.
-- **No two pieces of text occupying the same screen region at the same time** unless they are intentionally composited (e.g., one large outlined word with a smaller filled word inset inside it as a deliberate effect). "Headline + tagline overlapping in the center because one is `absolute inset-0`" is a layout bug, not a design choice. When stacking type vertically, use real flow layout (flex column with gaps) — not absolute positioning that ignores siblings.
-- **Decorative/ambient type must visibly differ from readable type.** Different size, opacity, position, and weight — so the viewer instantly understands what to read and what is texture. If a watermark and a headline are both 12vw stroked uppercase display, they fight; the viewer reads neither.
-- **Re-watch each scene with the question "could a stranger read every readable line in one pass?"** If the answer is no for any element that is supposed to communicate, fix it before shipping. Apply this in the final review pass even if individual elements looked fine in isolation.
-</scale_and_legibility>
 <critical_rules>
 **Asset paths — this breaks every video if you get it wrong:**
 
@@ -168,10 +104,6 @@ When generating video clips or images via tools, always use the exact file path 
 **AnimatePresence mode:** Use `mode="popLayout"` or `mode="sync"`. **Never use `mode="wait"`** — it causes blank frames between scenes.
 
 **Scene files:** Place scenes in `src/components/video/video_scenes/` (e.g., `Scene1.tsx` through `Scene5.tsx`). Export as named exports matching the filename.
-
-**Background clip duration must match scene duration.** If a scene plays an AI-generated or stock video clip as its background, that scene's entry in `SCENE_DURATIONS` MUST be ≤ the clip's actual duration (minus a small overlap for the outgoing transition, e.g. 500ms). Otherwise the clip visibly loops on screen mid-scene and the production value collapses. If you change a scene's duration, re-check this. If you need a longer beat than the clip allows, generate a longer clip or cross-cut to a different background — do not let the same clip restart on screen. See `<visual_layering>` for the full rationale.
-
-**Text legibility is a critical rule, not a style preference.** No stroke-only text over imagery; no primary text below 70% opacity; no two pieces of readable text occupying the same screen region. See `<scale_and_legibility>` for the full checklist — it must be applied in the final review pass.
 
 **Do not modify `src/lib/video/hooks.ts`** — the recording/export pipeline depends on its exact implementation.
 </critical_rules>
@@ -217,36 +149,6 @@ This is the single most important section. If you ignore everything else, read t
 
 </slideshow_vs_motion_graphics>
 
-<hard_nos>
-These are concrete defaults that read as "AI-generated motion piece." Avoid them unless you have a specific, defensible reason -- and even then, push for a fresher choice first.
-
-**Motion hard nos:**
-
-- Idle floating or hovering elements that drift in place with no purpose
-- Slow, lingering bounces. If bounce is used at all, keep it short, snappy, and non-repetitive
-- Elements animating in and out individually in sequence (one-after-another reveals with no overlap or choreography)
-- Soft-easing, everything-floats-in motion -- a whole video built on gentle ease-in-out fades
-- Text entering the same way every time. Vary the animation to suit the weight and role of each line (a hero headline and a small caption should not share the same entrance)
-
-**Visual hard nos:**
-
-- Drifting radial gradient blobs in the background as the entire "atmosphere"
-- Receding 3D perspective grid floors (the synthwave/tech-cliché floor that vanishes to a horizon)
-- Large centered headline with one word in an accent color
-- Small uppercase tracked-out labels sitting above headlines (the "EYEBROW LABEL" pattern)
-- "Looks editorial but is unreadable" -- stroke-only/outline display type sitting over a photo, video clip, or busy gradient. Outlined type only works on flat contrasting color. Over imagery it disappears, and reaching for it is a tell that you're prioritizing aesthetic over communication.
-- Headlines or sublines rendered at low opacity (<70%) for "atmosphere." Low opacity is for explicitly decorative type only — never for a line the viewer is meant to read.
-- Two pieces of readable text overlapping in the same screen region by accident (almost always caused by `absolute inset-0` on one of them). Either composite them deliberately as a single effect or use real flow layout.
-
-**Typography hard nos:**
-
-- Typeface choices that ignore tone -- a technical explainer and a brand film should not look typographically identical
-- Default type choices that read as generic: one heavy sans-serif used for everything, very wide display weights as a crutch, heavy slabs applied indiscriminately
-- Decorative/ambient type that lives in the same visual register (size, weight, opacity) as readable type -- the viewer can't tell what to read
-
-If you catch yourself reaching for any of these, treat it as a signal to push the direction harder rather than ship the default.
-</hard_nos>
-
 <visual_layering>
 Every scene should have visual depth through layering. Never place text directly on a flat solid color.
 
@@ -262,7 +164,7 @@ Every video must include at least 2-3 visual assets beyond CSS shapes and gradie
 
 1. **User-attached assets come first.** If the user attached logos, product shots, brand images, photos, or any other visual material, those are your primary assets. Feature them prominently -- they are the reason the user attached them. Use ALL of them.
 2. **Generate supplemental assets to fill gaps.** Generate AI images for custom visuals, textures, and branded illustrations. Search for stock photos for real people, places, and products. Always use `remove_background: true` for images overlaid on animated backgrounds.
-3. **Generate AI video clips for cinematic backgrounds.** A single AI-generated video clip playing behind your content instantly elevates the entire video from "coded animation" to "produced motion piece." Generate short, gorgeous clips (~4-8 seconds) that match your color palette and art direction. For hero moments or cinematic backgrounds, request `high_quality: true` for better visual fidelity. **Never let a background clip visibly loop.** A loop seam (the cut back to frame 0) reads as cheap and breaks immersion. Size the scene that hosts a background clip to the clip's actual duration -- set its entry in `SCENE_DURATIONS` to match the clip length (minus a small overlap for the outgoing transition) so the scene cuts away before the clip restarts. If you need a longer beat, generate a longer clip or cross-cut to a different background rather than letting the same clip loop on screen. Do not set `loop` on `<video>` elements used as backgrounds.
+3. **Generate AI video clips for cinematic backgrounds.** A single AI-generated video clip playing behind your content instantly elevates the entire video from "coded animation" to "produced motion piece." Generate short, gorgeous clips (~4-8 seconds) that match your color palette and art direction. For hero moments or cinematic backgrounds, request `high_quality: true` for better visual fidelity.
 4. **CSS-based motion backgrounds as a baseline.** Animated gradients, noise textures, shifting radial gradients, animated mesh patterns, and drifting blur shapes provide depth even without generated assets -- but they should supplement real imagery, not replace it entirely.
 
 A video with only shapes, gradients, and text feels thin. Real images and video clips are what make it feel produced.
@@ -288,6 +190,17 @@ A video with only shapes, gradients, and text feels thin. Real images and video 
 
 <intra_scene_choreography>
 Each scene should be a **choreographed sequence**, not a single entrance animation. Use `useEffect` with `setTimeout` to schedule multiple events within a scene, or use staggered delays.
+
+**Example choreography for a single 4-second scene:**
+
+- 0.0s: Background gradient fades in, floating shapes begin drifting
+- 0.2s: Accent line draws across the screen
+- 0.5s: Headline characters stagger in with perspective rotation
+- 1.2s: Subline fades up with slight blur-to-sharp
+- 1.8s: Supporting image scales in from the right with spring physics
+- 3.0s: Elements begin their exit choreography (shrink, drift, blur) to flow into next scene
+
+This creates a SEQUENCE within each beat, not just "everything appears, sits, exits."
 
 **Using `useEffect` + `setTimeout` for choreography:**
 
@@ -344,8 +257,7 @@ Final tagline/lockup reveals through the window
 - Overlap everything: next element starts BEFORE current one finishes
 - No black gaps: never fade to black between scenes
 - Elements should transform, not just appear/disappear
-- Use varied editing within those 2-3 transition types: mix cuts, reveals, pans, depth shifts, and overlapping motion. Don't lean on one transition style for every scene change -- a video that cross-dissolves between every beat (or wipes between every beat) reads as a template, not a piece of motion design
-- Carry something consistent across every cut -- a persistent background, an ambient color wash, a recurring shape, a logo anchor -- so the scenes feel like one connected piece instead of unrelated moments stitched together (see `<cross_scene_continuity>` for the architectural pattern)
+- Use 2-3 consistent transition types per video, not random different ones
 - **The last scene needs an exit animation too.** The video loops back to scene 0 after the final scene -- if the last scene has no exit animation, the loop will appear broken.
 </transitions>
 
@@ -547,10 +459,10 @@ Think: "Would this impress a creative director at a top agency?" If not, push fu
 
 **Leverage AI-generated video clips for cinematic depth:**
 
-- As backgrounds: atmospheric motion (clouds, particles, abstract motion) behind text and UI. Cut away before the clip ends — never let a background clip visibly loop.
+- As backgrounds: atmospheric loops (clouds, particles, abstract motion) behind text and UI
 - As layered elements: motion textures (liquid, smoke, light leaks) overlaid at low opacity
 - As full scenes: generated video clip with kinetic typography on top for hero moments
-- Match the clip length to the hosting scene's duration (with a small overlap for the outgoing transition). If you need a longer beat, generate a longer clip or cross-cut to a different background rather than letting the same clip restart on screen.
+- Keep clips short (4s is ideal for loops), composite with your animated elements, match the visual style
 - For hero moments, request `high_quality: true` for better visual fidelity -- works best for key visual moments and scene backgrounds
 
 </visual_content>
@@ -567,7 +479,7 @@ const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
 ```
 
 - Define `SCENE_DURATIONS` as a `Record<string, number>` at the top of your video component -- it must be a static object because the hook captures scene keys and timing on first render; dynamic changes won't take effect
-- **Let the shot list determine the scene count.** Your shot list from the planning step already decided how many beats this video needs -- now translate one beat per scene into `SCENE_DURATIONS`. Use descriptive keys (e.g. `open`, `build1`, `reveal`, `close`) so the structure is self-documenting. The example above is illustrative, not a target.
+- **Aim for 5 scenes by default.** Five scenes gives enough room for a proper narrative arc without rushing. Name the keys to fit your content -- the example uses generic keys but you should use descriptive names for the specific video.
 - Pass it to `useVideoPlayer({ durations: SCENE_DURATIONS })` -- it returns `{ currentScene }`
 - The hook calls `startRecording` on mount, advances scenes by duration, calls `stopRecording` once after the first complete pass, then loops
 - **Do not modify `src/lib/video/hooks.ts`.** The hook manages the recording lifecycle -- calling `window.startRecording?.()` on mount and `window.stopRecording?.()` after the first complete pass. The recording/export pipeline depends on both calls firing at the correct time with the correct implementation. Do not rewrite, refactor, or replace the hook. If you need different scene behavior, change your `SCENE_DURATIONS` or scene components -- not the hook itself.
@@ -576,17 +488,15 @@ const { currentScene } = useVideoPlayer({ durations: SCENE_DURATIONS });
 - Wrap scenes in `AnimatePresence` -- use `mode="popLayout"` (snaps new scene into layout while old animates out) or `mode="sync"` (simultaneous enter/exit overlap). **Never use `mode="wait"`** -- it causes blank frames between scenes.
 - Each scene needs exit animations so they blend into the next
 
-**Pacing & narrative arc:**
+**Pacing:**
 
-- Build a clear arc: an intro that establishes tone and context, a middle that develops the content, and an ending that lands a clear takeaway. Every scene should be earning its place in that arc.
-- Vary the energy across the video -- don't hold a flat level throughout. Contrast a punchy 2s beat against a slower 4-5s dramatic moment so the rhythm has shape. Scene durations and count come from your shot list and declared pacing shape, not a fixed default.
-- Cut while motion is still in progress. Letting a scene finish its animation and then sit on a static frame reads as a slideshow -- the next scene should begin while the current one is still moving.
+- Aim for 3-5 seconds per scene, 5 scenes minimum. Mix short punchy beats with slower dramatic moments.
 - The video auto-plays on mount. No play buttons, no user interaction.
 
 **Outro:**
 
-- Always end with a conclusion that delivers the takeaway -- company name/logo with tagline or the relevant closing moment.
-- The ending should feel intentional, not abrupt.
+- Always end with a conclusion -- company name/logo with tagline or relevant closing moment
+- The ending should feel intentional, not abrupt
 
 **Looping -- the video MUST loop:**
 
@@ -797,17 +707,16 @@ export function Scene1() {
 
 <implementation_steps>
 
-1. **Director's treatment first** -- write the vibe, camera movement style, emotional arc, and pacing shape (per `<before_you_start>` step 7)
+1. **Director's treatment first** -- write the vibe, camera movement style, and emotional arc
 2. **Establish visual direction** -- colors, fonts, brand feel, animation style, motifs
-3. **Write the shot list** -- beat-by-beat with intended durations, per `<before_you_start>` step 8. The shot list dictates everything that follows.
-4. **Inventory and plan assets** -- Review any user-attached assets (logos, images, product shots) and decide where each one appears in the shot list. Then plan 2-4 supplemental generated assets to fill gaps: at minimum one background image or video clip and one foreground element (product shot, branded illustration, texture). Generate these in BATCH 1 alongside other prep work.
-5. **Group beats into scene components and define `SCENE_DURATIONS`** -- per `<before_you_start>` step 9. The scene count is whatever the shot list and beat-grouping require (commonly 3-9 for a 30-60s video) -- not a fixed number. Durations must vary; uniform durations are a failure mode.
-6. **Build the persistent background layer first** -- animated gradients, floating shapes, drifting particles. This lives OUTSIDE AnimatePresence so it persists across scenes.
-7. **Build each scene** in its own file under `src/components/video/video_scenes/` -- name them by role (e.g. `Open.tsx`, `Grip.tsx`, `RapidCuts.tsx`, `Hold.tsx`, `Outro.tsx`) or by number, but the count and naming follow your scene grouping, not a template. Each scene is a choreographed sequence -- single-beat scenes still have entrance/exit choreography; multi-beat scenes additionally manage internal phases via `useEffect` + `setTimeout`. Each scene should have background, midground, and foreground layers where appropriate.
-8. **Open with a hook** -- the first beat should grab attention immediately with a high-impact entrance.
-9. **Develop the narrative across the middle beats** -- the content and pacing should fit the subject matter. Let the concept and the pacing shape dictate the arc, not a formula.
-10. **Close with a strong ending** -- the final beat should feel intentional and resolved, not abrupt.
-11. **Review your work against the slideshow test:** If any scene is "centered text on a solid background with a fade," redo it with layers and choreography. If your `SCENE_DURATIONS` reads `9000, 9000, 9000, ...`, your shot list was a template -- redo the shot list.
+3. **Inventory and plan assets** -- Review any user-attached assets (logos, images, product shots) and decide where each one appears. Then plan 2-4 supplemental generated assets to fill gaps: at minimum one background image or video clip and one foreground element (product shot, branded illustration, texture). Generate these in BATCH 1 alongside other prep work.
+4. Define `SCENE_DURATIONS` (vary the pacing: 2-3s punchy beats, 4-5s for dramatic moments)
+5. **Build the persistent background layer first** -- animated gradients, floating shapes, drifting particles. This lives OUTSIDE AnimatePresence so it persists across scenes.
+6. **Build 5 scenes**, each in its own file under `src/components/video/video_scenes/` -- `Scene1.tsx` through `Scene5.tsx`. Each scene is a choreographed sequence, not a single entrance animation. Plan 3-5 timed moments per scene using delays or `useEffect` with `setTimeout`. Each scene should have background, midground, and foreground layers.
+7. **Open with a hook** -- the first scene should grab attention immediately with a high-impact entrance.
+8. **Develop the narrative across the middle scenes** -- the content and pacing should fit the subject matter. Let the concept dictate the arc, not a formula.
+9. **Close with a strong ending** -- the final scene should feel intentional and resolved, not abrupt.
+10. **Review your work against the slideshow test:** If any scene is "centered text on a solid background with a fade," redo it with layers and choreography.
 </implementation_steps>
 
 <parallelization_notes>
@@ -879,11 +788,6 @@ This section is for YOU, the design subagent. You are responsible for validation
    - See `.local/skills/video-js/references/finalize_playback.md` for the full checklist
 
 3. **Verify asset paths**: Confirm that every `src=` attribute referencing a file in `public/` uses `import.meta.env.BASE_URL` and the correct file extension matching the actual file on disk — see `<critical_rules>` at the top of this file.
-
-4. **Pacing check**: Inspect `SCENE_DURATIONS`.
-   - **Unless your declared pacing shape is explicitly metronomic, no three adjacent scenes may share the same duration.** If you have `9000, 9000, 9000, ...` or any run of three identical values in a non-metronomic piece, your shot list was a template, not a treatment -- regroup beats or revise the shot list to introduce real pacing variation. If your pacing shape *is* metronomic (e.g. "metronomic 3s beats throughout"), uniform durations are correct and expected.
-   - **The set of durations should reflect your declared pacing shape** (treatment bullet 4). If your shape was "slow build → fast cuts → held atmospheric → resolve" but every scene is 8s, you didn't actually deliver the shape -- fix it.
-   - **The scene count should reflect the brief**, not a round number. For a 30-60s piece, kinetic/athletic briefs commonly need 6-9+ scenes; cinematic/atmospheric briefs commonly need 3-5. If you built exactly 5 scenes by default for any brief, ask yourself whether that was the shot list talking or the template talking.
 
 After completing all checks, return to the main agent. The main agent will restart the workflow.
 </completing_your_run>

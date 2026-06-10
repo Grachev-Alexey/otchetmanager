@@ -7,6 +7,7 @@ const router = Router();
 const LEADS_KEY   = 'leads:all';
 const CHECKIN_PFX = 'leads:checkin:';
 
+
 function dbRequired(res: any) {
   return res.status(503).json({ error: 'База данных недоступна' });
 }
@@ -126,34 +127,55 @@ router.get('/checkin', async (req, res) => {
     const managerFilter = isAdmin ? '' : `AND lr.manager_name = $1`;
 
     const result = await db.pool.query(`
-      WITH yoo AS (
-        SELECT DISTINCT ON (deal_id::text)
-          deal_id::text AS lead_id,
-          status,
-          summa
-        FROM yookassa
-        WHERE status = 'succeeded'
-        ORDER BY deal_id::text, deal_id
-      )
       SELECT
         lr.id, lr.manager_name, lr.client_name, lr.client_phone,
         lr.amocrm_lead_id, lr.booking_date, lr.status, lr.city,
         lr.deposit_required, lr.deposit_amount, lr.deposit_paid,
         lr.visit_cost, lr.comments, lr.created_at,
-        yr.attendance AS yclients_attendance,
-        yr.staff_name AS yclients_staff,
-        yoo.status    AS yookassa_status,
-        yoo.summa     AS yookassa_amount
+        yr.attendance  AS yclients_attendance,
+        yr.staff_name  AS yclients_staff,
+        yr.deleted     AS yclients_deleted,
+        yr.date_visit  AS yclients_date,
+        yr.services    AS yclients_services,
+        yoo.status     AS yookassa_status,
+        yoo.summa      AS yookassa_amount
       FROM leads_reporting lr
-      LEFT JOIN yoo ON lr.amocrm_lead_id <> '' AND yoo.lead_id = lr.amocrm_lead_id
-      LEFT JOIN yclients_record yr ON (
-        LENGTH(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g')) >= 10
-        AND RIGHT(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g'), 10)
-            = RIGHT(yr.client_phone, 10)
-        AND yr.date_visit::date = lr.booking_date
-      )
-      WHERE lr.booking_date < (NOW() AT TIME ZONE 'Europe/Moscow')::date
-        AND lr.status IN ('booked','rescheduled')
+      LEFT JOIN LATERAL (
+        SELECT status, summa
+        FROM yookassa
+        WHERE lr.amocrm_lead_id <> ''
+          AND deal_id::text = lr.amocrm_lead_id
+          AND status = 'succeeded'
+          AND date::date BETWEEN lr.created_at::date
+              AND (lr.created_at::date + INTERVAL '1 day')
+        ORDER BY date ASC
+        LIMIT 1
+      ) yoo ON true
+      LEFT JOIN LATERAL (
+        SELECT
+          yr2.attendance,
+          yr2.staff_name,
+          yr2.deleted,
+          yr2.date_visit::text AS date_visit,
+          yr2.record_id,
+          (
+            SELECT json_agg(json_build_object(
+              'name', ys.service_name,
+              'price', ys.price::float,
+              'paid',  ys.oplata::float
+            ))
+            FROM yclients_services ys
+            WHERE ys.record_id = yr2.record_id
+          ) AS services
+        FROM yclients_record yr2
+        WHERE LENGTH(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g')) >= 10
+          AND RIGHT(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g'), 10)
+              = RIGHT(yr2.client_phone, 10)
+          AND yr2.date_visit::date = lr.booking_date
+        ORDER BY yr2.deleted ASC, yr2.record_id DESC
+        LIMIT 1
+      ) yr ON true
+      WHERE lr.booking_date <= (NOW() AT TIME ZONE 'Europe/Moscow')::date
         ${managerFilter}
       ORDER BY lr.booking_date DESC
     `, params);
@@ -170,10 +192,14 @@ router.get('/checkin', async (req, res) => {
       depositRequired: r.deposit_required,
       depositAmount: parseFloat(r.deposit_amount || 0),
       depositPaid: r.deposit_paid,
+      isReferral: r.is_referral ?? false,
       visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
       comments: r.comments,
       yclientsAttendance: r.yclients_attendance ?? null,
       yclientsStaff: r.yclients_staff ?? null,
+      yclientsDeleted: r.yclients_deleted ?? null,
+      yclientsDate: r.yclients_date ?? null,
+      yclientsServices: r.yclients_services ?? null,
       yookassaPaid: r.yookassa_status === 'succeeded',
       yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
     }));
