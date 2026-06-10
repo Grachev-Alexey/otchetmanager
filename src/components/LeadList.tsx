@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { LeadReport, LeadStatus } from '../types';
 import {
   Search, Edit3, Trash2, Calendar, Phone,
   Layers, CheckCircle2, XCircle, Info, ChevronDown,
-  Banknote, ChevronLeft, ChevronRight, CalendarDays
+  Banknote, ChevronLeft, ChevronRight, CalendarDays, Star
 } from 'lucide-react';
 
 const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -196,6 +196,7 @@ interface LeadListProps {
   onDelete: (id: string) => Promise<void>;
   currentUserRole: 'admin' | 'manager';
   currentManagerName: string;
+  shiftActive?: boolean;
 }
 
 export default function LeadList({
@@ -204,6 +205,7 @@ export default function LeadList({
   onDelete,
   currentUserRole,
   currentManagerName,
+  shiftActive,
 }: LeadListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -211,11 +213,17 @@ export default function LeadList({
   const [dateFilter, setDateFilter] = useState<string>(() => todayMsk());
   const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid'>('all');
 
-  const authorizedLeads = currentUserRole === 'admin'
-    ? leads
-    : leads.filter(l => l.managerName === currentManagerName);
+  const authorizedLeads = useMemo(() =>
+    currentUserRole === 'admin'
+      ? leads
+      : leads.filter(l => l.managerName === currentManagerName),
+    [leads, currentUserRole, currentManagerName]
+  );
 
-  const uniqueManagers = Array.from(new Set(leads.map(l => l.managerName).filter(Boolean)));
+  const uniqueManagers = useMemo(() =>
+    Array.from(new Set(leads.map(l => l.managerName).filter(Boolean))),
+    [leads]
+  );
 
   const getStatusConfig = (status: LeadStatus) => {
     switch (status) {
@@ -239,30 +247,32 @@ export default function LeadList({
     return lead.status !== 'showed_up' && lead.status !== 'no_show';
   };
 
-  const filteredLeads = authorizedLeads.filter(lead => {
+  const filteredLeads = useMemo(() => {
     const term = search.toLowerCase();
-    const searchMatch = !search ||
-      lead.clientName.toLowerCase().includes(term) ||
-      (lead.clientPhone && lead.clientPhone.includes(term)) ||
-      (lead.amocrmLeadId && lead.amocrmLeadId.toLowerCase().includes(term));
+    return authorizedLeads.filter(lead => {
+      const searchMatch = !search ||
+        lead.clientName.toLowerCase().includes(term) ||
+        (lead.clientPhone && lead.clientPhone.includes(term)) ||
+        (lead.amocrmLeadId && lead.amocrmLeadId.toLowerCase().includes(term));
 
-    const statusMatch = statusFilter === 'all' || lead.status === statusFilter;
-    const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
+      const statusMatch = statusFilter === 'all' || lead.status === statusFilter;
+      const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
 
-    let dateMatch = true;
-    if (dateFilter && lead.bookingDate) {
-      dateMatch = String(lead.bookingDate).slice(0, 10) === dateFilter;
-    }
+      let dateMatch = true;
+      if (dateFilter && lead.bookingDate) {
+        dateMatch = String(lead.bookingDate).slice(0, 10) === dateFilter;
+      }
 
-    let depositMatch = true;
-    if (depositFilter === 'paid') {
-      depositMatch = !!lead.yookassaPaid;
-    } else if (depositFilter === 'not_paid') {
-      depositMatch = !!lead.amocrmLeadId && !lead.yookassaPaid;
-    }
+      let depositMatch = true;
+      if (depositFilter === 'paid') {
+        depositMatch = !!lead.yookassaPaid;
+      } else if (depositFilter === 'not_paid') {
+        depositMatch = !!lead.amocrmLeadId && !lead.yookassaPaid;
+      }
 
-    return searchMatch && statusMatch && managerMatch && dateMatch && depositMatch;
-  });
+      return searchMatch && statusMatch && managerMatch && dateMatch && depositMatch;
+    });
+  }, [authorizedLeads, search, statusFilter, managerFilter, dateFilter, depositFilter, currentUserRole]);
 
   const hasActiveFilters = !!dateFilter || managerFilter !== 'all' || statusFilter !== 'all' || search || depositFilter !== 'all';
 
@@ -421,7 +431,14 @@ export default function LeadList({
                           {statusConfig.text}
                         </span>
 
-                        {currentUserRole === 'admin' && lead.amocrmLeadId && (
+                        {lead.isReferral && (
+                          <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-amber-50 text-amber-700 border-amber-200">
+                            <Star className="w-3 h-3 shrink-0" />
+                            По рекомендации
+                          </span>
+                        )}
+
+                        {lead.amocrmLeadId && (
                           <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs transition-all duration-300 ${
                             lead.yookassaPaid
                               ? 'bg-violet-50 text-violet-700 border-violet-200'
@@ -478,25 +495,27 @@ export default function LeadList({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 self-end md:self-start shrink-0 pt-2 md:pt-0">
-                      <button
-                        onClick={() => onEdit(lead)}
-                        className="px-3.5 py-2.5 bg-white/70 border border-neutral-200 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 active:scale-95 text-[10.5px] font-bold uppercase tracking-wider text-neutral-600 rounded-xl cursor-pointer transition-all duration-300 flex items-center gap-1.5 shadow-4xs"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Изменить
-                      </button>
-
-                      {deletable && (
+                    {(currentUserRole === 'admin' || shiftActive !== false) && (
+                      <div className="flex items-center gap-2 self-end md:self-start shrink-0 pt-2 md:pt-0">
                         <button
-                          onClick={() => lead.id && onDelete(lead.id)}
-                          className="p-2.5 border border-neutral-150/50 bg-white/40 hover:bg-rose-500 hover:text-white active:scale-95 text-neutral-400 rounded-xl shadow-3xs transition-all duration-300 cursor-pointer"
-                          title="Удалить"
+                          onClick={() => onEdit(lead)}
+                          className="px-3.5 py-2.5 bg-white/70 border border-neutral-200 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 active:scale-95 text-[10.5px] font-bold uppercase tracking-wider text-neutral-600 rounded-xl cursor-pointer transition-all duration-300 flex items-center gap-1.5 shadow-4xs"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Изменить
                         </button>
-                      )}
-                    </div>
+
+                        {deletable && (
+                          <button
+                            onClick={() => lead.id && onDelete(lead.id)}
+                            className="p-2.5 border border-neutral-150/50 bg-white/40 hover:bg-rose-500 hover:text-white active:scale-95 text-neutral-400 rounded-xl shadow-3xs transition-all duration-300 cursor-pointer"
+                            title="Удалить"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                   </div>
                 </motion.div>

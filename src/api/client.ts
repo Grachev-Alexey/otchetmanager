@@ -69,9 +69,9 @@ export const api = {
 
   shifts: {
     active: (name: string) =>
-      request<{ active: boolean; session: ShiftSession | null; todayPriorSeconds: number }>(`/api/shifts/active?name=${encodeURIComponent(name)}`),
+      request<{ active: boolean; session: ShiftSession | null; todayPriorSeconds: number; sessionElapsedSeconds: number; breakElapsedSeconds: number }>(`/api/shifts/active?name=${encodeURIComponent(name)}`),
     start: (name: string) =>
-      request<{ success: boolean; session: ShiftSession | null; todayPriorSeconds?: number }>('/api/shifts/start', { method: 'POST', body: JSON.stringify({ name }) }),
+      request<{ success: boolean; session: ShiftSession | null; todayPriorSeconds?: number; sessionElapsedSeconds?: number }>('/api/shifts/start', { method: 'POST', body: JSON.stringify({ name }) }),
     end: (name: string) =>
       request<{ success: boolean; workedSeconds: number }>('/api/shifts/end', { method: 'POST', body: JSON.stringify({ name }) }),
     breakStart: (name: string) =>
@@ -82,5 +82,15 @@ export const api = {
       request<{ totalSeconds: number }>(`/api/shifts/monthly?name=${encodeURIComponent(name)}&year=${year}&month=${month}`),
     monthlyAll: (year: number, month: number) =>
       request<Record<string, number>>(`/api/shifts/monthly-all?year=${year}&month=${month}`),
+    adminSessions: (date: string) =>
+      request<ShiftSession[]>(`/api/shifts/admin/sessions?date=${encodeURIComponent(date)}`),
+    adminCreate: (data: { managerName: string; startedAt: string; endedAt?: string; totalBreakSecs?: number }) =>
+      request<ShiftSession>('/api/shifts/admin/sessions', { method: 'POST', body: JSON.stringify(data) }),
+    adminUpdate: (id: number, data: { startedAt?: string; endedAt?: string; totalBreakSecs?: number }) =>
+      request<ShiftSession>(`/api/shifts/admin/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    adminDelete: (id: number) =>
+      request<{ success: boolean }>(`/api/shifts/admin/sessions/${id}`, { method: 'DELETE' }),
+    adminClose: (id: number) =>
+      request<ShiftSession>(`/api/shifts/admin/close/${id}`, { method: 'POST' }),
   },
 };

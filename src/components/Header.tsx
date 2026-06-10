@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin';
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin' | 'shift_management';
 
 const TITLES: Record<ActiveMenu, { crumb: string; heading: string }> = {
   dashboard:        { crumb: 'ГЛАВНАЯ',          heading: 'Обзор и результаты' },
@@ -9,6 +9,7 @@ const TITLES: Record<ActiveMenu, { crumb: string; heading: string }> = {
   staff_directory:  { crumb: 'КОМАНДА',           heading: 'Наша команда' },
   user_management:  { crumb: 'НАСТРОЙКИ',         heading: 'Управление пользователями' },
   checkin:          { crumb: 'ВИЗИТЫ',            heading: 'Проверка визитов' },
+  shift_management: { crumb: 'СМЕНЫ',             heading: 'Управление сменами' },
 };
 
 interface HeaderProps {

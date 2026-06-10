@@ -11,20 +11,24 @@ function dbRequired(res: any) {
 router.get('/', async (_req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
   try {
+    // CTE materialises one pass over yookassa instead of N correlated subqueries.
+    // deal_id is BIGINT; amocrm_lead_id is VARCHAR — cast once in CTE, then join on text.
     const result = await db.pool.query(`
+      WITH yoo AS (
+        SELECT DISTINCT ON (deal_id::text)
+          deal_id::text AS lead_id,
+          status,
+          summa
+        FROM yookassa
+        WHERE status = 'succeeded'
+        ORDER BY deal_id::text, deal_id
+      )
       SELECT
         lr.*,
-        (SELECT y.status FROM yookassa y
-           WHERE lr.amocrm_lead_id <> ''
-             AND y.deal_id::text = lr.amocrm_lead_id
-             AND y.status = 'succeeded'
-           LIMIT 1) AS yookassa_status,
-        (SELECT y.summa FROM yookassa y
-           WHERE lr.amocrm_lead_id <> ''
-             AND y.deal_id::text = lr.amocrm_lead_id
-             AND y.status = 'succeeded'
-           LIMIT 1) AS yookassa_amount
+        yoo.status AS yookassa_status,
+        yoo.summa  AS yookassa_amount
       FROM leads_reporting lr
+      LEFT JOIN yoo ON lr.amocrm_lead_id <> '' AND yoo.lead_id = lr.amocrm_lead_id
       ORDER BY lr.booking_date DESC, lr.created_at DESC
     `);
     return res.json(result.rows.map(r => ({
@@ -39,6 +43,7 @@ router.get('/', async (_req, res) => {
       depositRequired: r.deposit_required,
       depositAmount: parseFloat(r.deposit_amount),
       depositPaid: r.deposit_paid,
+      isReferral: r.is_referral ?? false,
       visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
       comments: r.comments,
       yookassaPaid: r.yookassa_status === 'succeeded',
@@ -92,22 +97,26 @@ router.get('/checkin', async (req, res) => {
     const managerFilter = isAdmin ? '' : `AND lr.manager_name = $1`;
 
     const result = await db.pool.query(`
+      WITH yoo AS (
+        SELECT DISTINCT ON (deal_id::text)
+          deal_id::text AS lead_id,
+          status,
+          summa
+        FROM yookassa
+        WHERE status = 'succeeded'
+        ORDER BY deal_id::text, deal_id
+      )
       SELECT
         lr.id, lr.manager_name, lr.client_name, lr.client_phone,
         lr.amocrm_lead_id, lr.booking_date, lr.status, lr.city,
         lr.deposit_required, lr.deposit_amount, lr.deposit_paid,
         lr.visit_cost, lr.comments, lr.created_at,
-        yr.attendance        AS yclients_attendance,
-        yr.staff_name        AS yclients_staff,
-        (SELECT y.status FROM yookassa y
-           WHERE y.deal_id::text = lr.amocrm_lead_id
-             AND y.status = 'succeeded'
-           LIMIT 1)          AS yookassa_status,
-        (SELECT y.summa FROM yookassa y
-           WHERE y.deal_id::text = lr.amocrm_lead_id
-             AND y.status = 'succeeded'
-           LIMIT 1)          AS yookassa_amount
+        yr.attendance AS yclients_attendance,
+        yr.staff_name AS yclients_staff,
+        yoo.status    AS yookassa_status,
+        yoo.summa     AS yookassa_amount
       FROM leads_reporting lr
+      LEFT JOIN yoo ON lr.amocrm_lead_id <> '' AND yoo.lead_id = lr.amocrm_lead_id
       LEFT JOIN yclients_record yr ON (
         LENGTH(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g')) >= 10
         AND RIGHT(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g'), 10)
@@ -168,7 +177,8 @@ router.patch('/:id/quick', async (req, res) => {
 // POST /api/leads
 router.post('/', async (req, res) => {
   const { id, managerName, clientName, clientPhone, amocrmLeadId,
-          bookingDate, status, city, depositRequired, depositAmount, depositPaid, visitCost, comments } = req.body;
+          bookingDate, status, city, depositRequired, depositAmount, depositPaid,
+          isReferral, visitCost, comments } = req.body;
 
   if (!managerName || !clientName || !bookingDate) {
     return res.status(400).json({ error: 'Отсутствуют обязательные поля' });
@@ -184,8 +194,8 @@ router.post('/', async (req, res) => {
       INSERT INTO leads_reporting (
         id, manager_name, client_name, client_phone, amocrm_lead_id,
         booking_date, status, city, deposit_required, deposit_amount, deposit_paid,
-        visit_cost, comments, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        is_referral, visit_cost, comments, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET
         manager_name = EXCLUDED.manager_name,
         client_name = EXCLUDED.client_name,
@@ -197,12 +207,13 @@ router.post('/', async (req, res) => {
         deposit_required = EXCLUDED.deposit_required,
         deposit_amount = EXCLUDED.deposit_amount,
         deposit_paid = EXCLUDED.deposit_paid,
+        is_referral = EXCLUDED.is_referral,
         visit_cost = EXCLUDED.visit_cost,
         comments = EXCLUDED.comments,
         updated_at = EXCLUDED.updated_at
     `, [leadId, managerName, clientName, clientPhone || '', amocrmLeadId || '',
         bookingDate, finalStatus, city || '', !!depositRequired, depositAmount || 0,
-        !!depositPaid, visitCost != null ? visitCost : 2090, comments || '', now, now]);
+        !!depositPaid, !!isReferral, visitCost != null ? visitCost : 2090, comments || '', now, now]);
     return res.json({ id: leadId, success: true });
   } catch (err: any) {
     return res.status(500).json({ error: 'Database write error: ' + err.message });

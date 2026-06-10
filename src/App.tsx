@@ -12,12 +12,13 @@ import LeadsPage             from './pages/LeadsPage';
 import StaffDirectoryPage    from './pages/StaffDirectoryPage';
 import UserManagementPage    from './pages/UserManagementPage';
 import CheckinPage           from './pages/CheckinPage';
+import ShiftManagementPage   from './pages/ShiftManagementPage';
 import Sidebar               from './components/Sidebar';
 import Header                from './components/Header';
 import SalarySummary         from './components/SalarySummary';
 import LeadForm              from './components/LeadForm';
 
-type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin';
+type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'staff_directory' | 'user_management' | 'checkin' | 'shift_management';
 
 const SESSION_KEY = 'vivi_marketing_session';
 
@@ -36,6 +37,8 @@ export default function App() {
   const [activeMenu, setActiveMenu]     = useState<ActiveMenu>('dashboard');
   const [isFormOpen, setIsFormOpen]     = useState(false);
   const [editingLead, setEditingLead]   = useState<LeadReport | null>(null);
+  // null = shift state not yet known (loading); true/false = known
+  const [managerShiftActive, setManagerShiftActive] = useState<boolean | null>(null);
 
   useEffect(() => {
     initialize().then(() => {
@@ -117,8 +120,17 @@ export default function App() {
     setActiveMenu('dashboard');
     setIsFormOpen(false);
     setEditingLead(null);
+    setManagerShiftActive(null);
     localStorage.removeItem(SESSION_KEY);
   }, [currentUser]);
+
+  // When manager's shift ends while on the Leads page, kick them to dashboard
+  const handleShiftChange = useCallback((active: boolean) => {
+    setManagerShiftActive(active);
+    if (!active && activeMenu === 'leads') {
+      setActiveMenu('dashboard');
+    }
+  }, [activeMenu]);
 
   const handleSaveLead = useCallback(async (lead: LeadReport): Promise<boolean> => {
     try {
@@ -209,6 +221,8 @@ export default function App() {
         totalUsersCount={allUsers.length}
         checkinCount={checkinCount}
         onLogout={handleLogout}
+        shiftActive={currentUser.role === 'manager' ? (managerShiftActive ?? undefined) : undefined}
+        onShiftChange={currentUser.role === 'manager' ? handleShiftChange : undefined}
       />
 
       <main className="flex-1 flex flex-col min-w-0 z-10 relative">
@@ -235,6 +249,7 @@ export default function App() {
                   currentUser={currentUser}
                   onEditLead={handleEditLead}
                   onDeleteLead={handleDeleteLead}
+                  shiftActive={currentUser.role === 'manager' ? (managerShiftActive ?? undefined) : undefined}
                 />
               </motion.div>
             )}
@@ -275,12 +290,18 @@ export default function App() {
                 />
               </motion.div>
             )}
+
+            {activeMenu === 'shift_management' && currentUser.role === 'admin' && (
+              <motion.div key="shift_management" {...PAGE_TRANSITION}>
+                <ShiftManagementPage allUsers={allUsers} />
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </main>
 
-      {/* Floating sticky button — managers only */}
-      {currentUser.role === 'manager' && (
+      {/* Floating sticky button — managers only, only when shift is active */}
+      {currentUser.role === 'manager' && managerShiftActive === true && (
         <button
           onClick={openNewForm}
           className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-[0_8px_28px_-4px_rgba(79,70,229,0.55)] hover:shadow-[0_8px_32px_-4px_rgba(79,70,229,0.7)] transition-all duration-200 cursor-pointer text-[11px] uppercase tracking-widest active:scale-95"

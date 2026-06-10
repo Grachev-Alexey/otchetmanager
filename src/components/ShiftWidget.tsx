@@ -3,7 +3,10 @@ import { Play, Coffee, StopCircle } from 'lucide-react';
 import { api } from '../api/client';
 import type { ShiftSession } from '../types';
 
-interface Props { managerName: string; }
+interface Props {
+  managerName: string;
+  onShiftChange?: (active: boolean) => void;
+}
 type ShiftState = 'idle' | 'active' | 'on_break';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -19,44 +22,79 @@ function mskHHMM(iso: string) {
   });
 }
 
-export default function ShiftWidget({ managerName }: Props) {
-  const [state, setState]     = useState<ShiftState>('idle');
-  const [session, setSession] = useState<ShiftSession | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+// Anchor-based timer: avoids comparing client clock with server timestamps.
+// anchorTime  = Date.now() at the moment we received server data
+// anchorTotal = total elapsed seconds (prior + session) at that moment
+// anchorBreak = break elapsed seconds at that moment (if on break)
+interface Anchor {
+  time: number;
+  total: number;
+  breakSec: number;
+  onBreak: boolean;
+}
+
+export default function ShiftWidget({ managerName, onShiftChange }: Props) {
+  const [state, setState]       = useState<ShiftState>('idle');
+  const [session, setSession]   = useState<ShiftSession | null>(null);
+  const [elapsed, setElapsed]   = useState(0);
   const [breakSec, setBreakSec] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy]       = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [busy, setBusy]         = useState(false);
 
-  // ref keeps the latest priorSecs so closures always see the correct value
-  const priorSecsRef = useRef(0);
-  const tickRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const anchorRef = useRef<Anchor>({ time: Date.now(), total: 0, breakSec: 0, onBreak: false });
+  const tickRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const startTick = useCallback((s: ShiftSession) => {
+  const startTick = useCallback((anchor: Anchor) => {
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = setInterval(() => {
-      const now    = Date.now();
-      const gross  = now - new Date(s.startedAt).getTime();
-      const breaks = s.totalBreakSecs * 1000
-        + (s.breakStartedAt ? now - new Date(s.breakStartedAt).getTime() : 0);
-      setElapsed(priorSecsRef.current + Math.max(0, Math.floor((gross - breaks) / 1000)));
-      setBreakSec(s.breakStartedAt
-        ? Math.floor((now - new Date(s.breakStartedAt).getTime()) / 1000) : 0);
+      const delta = Math.floor((Date.now() - anchorRef.current.time) / 1000);
+      if (anchorRef.current.onBreak) {
+        setBreakSec(anchorRef.current.breakSec + delta);
+        setElapsed(anchorRef.current.total); // frozen while on break
+      } else {
+        setElapsed(anchorRef.current.total + delta);
+        setBreakSec(0);
+      }
     }, 1000);
+  }, []);
+
+  const setAnchor = useCallback((a: Anchor) => {
+    anchorRef.current = a;
+    if (a.onBreak) {
+      setBreakSec(a.breakSec);
+      setElapsed(a.total);
+    } else {
+      setElapsed(a.total);
+      setBreakSec(0);
+    }
   }, []);
 
   useEffect(() => {
     setLoading(true);
     api.shifts.active(managerName)
-      .then(({ active, session: s, todayPriorSeconds }) => {
-        const prior = todayPriorSeconds ?? 0;
-        priorSecsRef.current = prior;
-        setElapsed(prior);
+      .then(({ active, session: s, todayPriorSeconds, sessionElapsedSeconds, breakElapsedSeconds }) => {
+        const prior   = todayPriorSeconds ?? 0;
+        const sessSec = sessionElapsedSeconds ?? 0;
+        const brkSec  = breakElapsedSeconds  ?? 0;
+
         if (active && s) {
+          const onBreak = !!s.breakStartedAt;
+          const anchor: Anchor = {
+            time:     Date.now(),
+            total:    prior + sessSec,
+            breakSec: brkSec,
+            onBreak,
+          };
           setSession(s);
-          setState(s.breakStartedAt ? 'on_break' : 'active');
-          startTick(s);
+          setState(onBreak ? 'on_break' : 'active');
+          setAnchor(anchor);
+          startTick(anchor);
+          onShiftChange?.(true);
         } else {
+          setElapsed(prior);
+          anchorRef.current = { time: Date.now(), total: prior, breakSec: 0, onBreak: false };
           setState('idle');
+          onShiftChange?.(false);
         }
       })
       .catch(() => {})
@@ -68,19 +106,19 @@ export default function ShiftWidget({ managerName }: Props) {
   const startShift = async () => {
     setBusy(true);
     try {
-      const { session: s, todayPriorSeconds } = await api.shifts.start(managerName);
-      // Always trust the server's todayPriorSeconds — it's the source of truth for the day total
-      if (todayPriorSeconds !== undefined) {
-        priorSecsRef.current = todayPriorSeconds;
-        setElapsed(todayPriorSeconds);
-      }
+      const { session: s, todayPriorSeconds, sessionElapsedSeconds } = await api.shifts.start(managerName);
+      const prior   = todayPriorSeconds    ?? 0;
+      const sessSec = sessionElapsedSeconds ?? 0;
+      const anchor: Anchor = { time: Date.now(), total: prior + sessSec, breakSec: 0, onBreak: false };
       const pseudo = s ?? {
         id: 0, managerName, startedAt: new Date().toISOString(),
         endedAt: null, breakStartedAt: null, totalBreakSecs: 0,
       };
       setSession(pseudo);
-      startTick(pseudo);
+      setAnchor(anchor);
+      startTick(anchor);
       setState('active');
+      onShiftChange?.(true);
     } catch { /* ignore */ } finally { setBusy(false); }
   };
 
@@ -89,12 +127,13 @@ export default function ShiftWidget({ managerName }: Props) {
     try {
       const { workedSeconds } = await api.shifts.end(managerName);
       if (tickRef.current) clearInterval(tickRef.current);
-      const newPrior = priorSecsRef.current + (workedSeconds ?? 0);
-      priorSecsRef.current = newPrior;
-      setElapsed(newPrior);
+      const newTotal = anchorRef.current.total + (workedSeconds ?? 0);
+      anchorRef.current = { time: Date.now(), total: newTotal, breakSec: 0, onBreak: false };
+      setElapsed(newTotal);
       setState('idle');
       setSession(null);
       setBreakSec(0);
+      onShiftChange?.(false);
     } catch { /* ignore */ } finally { setBusy(false); }
   };
 
@@ -102,11 +141,14 @@ export default function ShiftWidget({ managerName }: Props) {
     setBusy(true);
     try {
       await api.shifts.breakStart(managerName);
-      if (session) {
-        const u = { ...session, breakStartedAt: new Date().toISOString() };
-        setSession(u);
-        startTick(u);
-      }
+      if (session) setSession({ ...session, breakStartedAt: new Date().toISOString() });
+      // Freeze total at current elapsed; begin counting break from 0
+      const nowTotal = anchorRef.current.onBreak
+        ? anchorRef.current.total
+        : anchorRef.current.total + Math.floor((Date.now() - anchorRef.current.time) / 1000);
+      const anchor: Anchor = { time: Date.now(), total: nowTotal, breakSec: 0, onBreak: true };
+      setAnchor(anchor);
+      startTick(anchor);
       setState('on_break');
     } catch { /* ignore */ } finally { setBusy(false); }
   };
@@ -115,13 +157,11 @@ export default function ShiftWidget({ managerName }: Props) {
     setBusy(true);
     try {
       await api.shifts.breakEnd(managerName);
-      if (session) {
-        const addSecs = session.breakStartedAt
-          ? Math.floor((Date.now() - new Date(session.breakStartedAt).getTime()) / 1000) : 0;
-        const u = { ...session, breakStartedAt: null, totalBreakSecs: session.totalBreakSecs + addSecs };
-        setSession(u);
-        startTick(u);
-      }
+      if (session) setSession({ ...session, breakStartedAt: null });
+      // Resume counting work time from the frozen total
+      const anchor: Anchor = { time: Date.now(), total: anchorRef.current.total, breakSec: 0, onBreak: false };
+      setAnchor(anchor);
+      startTick(anchor);
       setState('active');
       setBreakSec(0);
     } catch { /* ignore */ } finally { setBusy(false); }

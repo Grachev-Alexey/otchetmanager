@@ -29,14 +29,17 @@ function fmtHours(secs: number): string {
 }
 
 export default function DashboardPage({ leads, rules, allUsers, currentUser, onNavigate }: Props) {
-  const myLeads     = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
-  const totalCount  = myLeads.length;
-  const showUps     = myLeads.filter(l => l.status === 'showed_up').length;
-  const deposits    = myLeads.filter(l => l.depositRequired && l.depositPaid).length;
-  const depositSum  = myLeads.reduce((s, l) => s + (l.depositPaid ? l.depositAmount : 0), 0);
-  const noShows     = myLeads.filter(l => l.status === 'no_show').length;
-  const arrivalRate = totalCount > 0 ? (showUps / totalCount) * 100 : 0;
-  const noShowRate  = totalCount > 0 ? Math.round((noShows / totalCount) * 100) : 0;
+  const myLeads          = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
+  const totalCount       = myLeads.length;
+  const showUps          = myLeads.filter(l => l.status === 'showed_up').length;
+  const regularDeposits  = myLeads.filter(l => l.depositPaid && !l.isReferral).length;
+  const referralDeposits = myLeads.filter(l => l.depositPaid && l.isReferral).length;
+  const deposits         = regularDeposits + referralDeposits;
+  const weightedDeposits = regularDeposits + referralDeposits * 2;
+  const depositSum       = myLeads.reduce((s, l) => s + (l.depositPaid ? l.depositAmount : 0), 0);
+  const noShows          = myLeads.filter(l => l.status === 'no_show').length;
+  const arrivalRate      = totalCount > 0 ? (showUps / totalCount) * 100 : 0;
+  const noShowRate       = totalCount > 0 ? Math.round((noShows / totalCount) * 100) : 0;
 
   // Worked hours this month for manager view
   const [workedSecs, setWorkedSecs] = useState(0);
@@ -56,7 +59,7 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
     }
   }, [currentUser]);
 
-  const salary = calcSalary(showUps, deposits, workedSecs, rules);
+  const salary = calcSalary(showUps, weightedDeposits, workedSecs, rules);
   const overPo = deposits > (rules.poThreshold ?? 140);
 
   return (

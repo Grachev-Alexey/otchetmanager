@@ -14,6 +14,7 @@ export interface LeadReport {
   depositPaid: boolean;
   visitCost?: number;
   comments?: string;
+  isReferral?: boolean;
   yookassaPaid?: boolean;
   yookassaAmount?: number | null;
   createdAt?: string;
@@ -73,4 +74,5 @@ export interface ManagerPerformance {
   workedSeconds: number;
   earnedSalary: number;
   leads: LeadReport[];
+  referralDeposits?: number;
 }

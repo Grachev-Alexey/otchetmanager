@@ -7,9 +7,10 @@ interface Props {
   currentUser: StaffMember;
   onEditLead: (lead: LeadReport) => void;
   onDeleteLead: (id: string) => Promise<void>;
+  shiftActive?: boolean;
 }
 
-export default function LeadsPage({ leads, currentUser, onEditLead, onDeleteLead }: Props) {
+export default function LeadsPage({ leads, currentUser, onEditLead, onDeleteLead, shiftActive }: Props) {
   const authorizedCount = currentUser.role === 'admin'
     ? leads.length
     : leads.filter(l => l.managerName === currentUser.name).length;
@@ -34,6 +35,7 @@ export default function LeadsPage({ leads, currentUser, onEditLead, onDeleteLead
         onDelete={onDeleteLead}
         currentUserRole={currentUser.role}
         currentManagerName={currentUser.name}
+        shiftActive={shiftActive}
       />
     </div>
   );

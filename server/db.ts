@@ -125,6 +125,11 @@ export async function bootstrapDb(): Promise<void> {
     `);
 
     await client.query(`
+      ALTER TABLE leads_reporting
+        ADD COLUMN IF NOT EXISTS is_referral BOOLEAN DEFAULT FALSE
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS work_sessions (
         id               BIGSERIAL PRIMARY KEY,
         manager_name     VARCHAR(255) NOT NULL,
@@ -137,6 +142,29 @@ export async function bootstrapDb(): Promise<void> {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_work_sessions_manager
         ON work_sessions(manager_name, started_at DESC)
+    `);
+
+    // Performance indexes for leads_reporting — critical for 5000+ row scenarios.
+    // booking_date: ORDER BY and WHERE in checkin.
+    // manager_name: per-manager filtering.
+    // amocrm_lead_id: JOIN condition against yookassa CTE.
+    // status: WHERE status IN (...) in checkin.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_leads_reporting_booking_date
+        ON leads_reporting(booking_date DESC)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_leads_reporting_manager_name
+        ON leads_reporting(manager_name)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_leads_reporting_amocrm_id
+        ON leads_reporting(amocrm_lead_id)
+      WHERE amocrm_lead_id IS NOT NULL AND amocrm_lead_id <> ''
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_leads_reporting_status
+        ON leads_reporting(status)
     `);
 
     client.release();

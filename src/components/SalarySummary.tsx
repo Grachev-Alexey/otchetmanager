@@ -103,14 +103,17 @@ export default function SalarySummary({
     : [currentManagerName];
 
   const performances: ManagerPerformance[] = managers.map(managerName => {
-    const ml            = periodLeads.filter(l => l.managerName === managerName);
-    const totalBookings = ml.length;
-    const totalDeposits = ml.filter(l => l.depositPaid).length;
-    const totalShowUps  = ml.filter(l => l.status === 'showed_up').length;
-    const totalNoShows  = ml.filter(l => l.status === 'no_show').length;
-    const workedSeconds = monthlyHours[managerName] ?? 0;
-    const earnedSalary  = calcSalary(totalShowUps, totalDeposits, workedSeconds, rules);
-    return { managerName, totalBookings, totalDeposits, totalShowUps, totalNoShows, workedSeconds, earnedSalary, leads: ml };
+    const ml              = periodLeads.filter(l => l.managerName === managerName);
+    const totalBookings   = ml.length;
+    const regularDeposits = ml.filter(l => l.depositPaid && !l.isReferral).length;
+    const referralDeposits = ml.filter(l => l.depositPaid && l.isReferral).length;
+    const totalDeposits   = regularDeposits + referralDeposits;
+    const weightedDeposits = regularDeposits + referralDeposits * 2;
+    const totalShowUps    = ml.filter(l => l.status === 'showed_up').length;
+    const totalNoShows    = ml.filter(l => l.status === 'no_show').length;
+    const workedSeconds   = monthlyHours[managerName] ?? 0;
+    const earnedSalary    = calcSalary(totalShowUps, weightedDeposits, workedSeconds, rules);
+    return { managerName, totalBookings, totalDeposits, totalShowUps, totalNoShows, workedSeconds, earnedSalary, leads: ml, referralDeposits };
   });
 
   const inputCls = "w-full pl-8 pr-4 py-3 bg-neutral-50 border border-neutral-150/60 rounded-xl text-neutral-900 font-semibold focus:border-neutral-900 focus:outline-hidden focus:bg-white transition-all duration-300 shadow-3xs";
@@ -351,10 +354,25 @@ export default function SalarySummary({
                     <span>Часы работы ({hours.toFixed(1)} ч × {rules.hourlyRate} ₽):</span>
                     <span className="text-neutral-700">+{(hours * rules.hourlyRate).toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Предоплаты ПО ({perf.totalDeposits} × {poRate} ₽):</span>
-                    <span className="text-neutral-700">+{(perf.totalDeposits * poRate).toLocaleString()} ₽</span>
-                  </div>
+                  {(() => {
+                    const ref = perf.referralDeposits ?? 0;
+                    const reg = perf.totalDeposits - ref;
+                    const weighted = reg + ref * 2;
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Предоплаты ПО ({weighted} × {poRate} ₽):</span>
+                          <span className="text-neutral-700">+{(weighted * poRate).toLocaleString()} ₽</span>
+                        </div>
+                        {ref > 0 && (
+                          <div className="flex justify-between text-amber-600 pl-3 border-l-2 border-amber-200">
+                            <span>в т.ч. по рекомендации ({ref} шт × ×2)</span>
+                            <span>+{(ref * poRate).toLocaleString()} ₽ бонус</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

@@ -218,6 +218,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
   const [city, setCity] = useState(initialLead?.city || '');
   const [depositRequired, setDepositRequired] = useState(initialLead?.depositRequired || false);
   const [depositAmount, setDepositAmount] = useState(initialLead?.depositAmount || 300);
+  const [isReferral, setIsReferral] = useState(initialLead?.isReferral || false);
   const [visitCost, setVisitCost] = useState(initialLead?.visitCost ?? 2090);
   const [comments, setComments] = useState(initialLead?.comments || '');
 
@@ -272,6 +273,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
       depositRequired,
       depositAmount: depositRequired ? depositAmount : 0,
       depositPaid: initialLead?.depositPaid || false,
+      isReferral,
       visitCost,
       comments: comments.trim(),
     };
@@ -282,6 +284,7 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
       if (!initialLead) {
         setAmocrmUrl(''); setAmocrmLeadId(''); setClientName('');
         setClientPhone(''); setCity(''); setDepositRequired(false);
+        setIsReferral(false);
         setDepositAmount(300); setVisitCost(2090); setComments(''); setLookupState('idle');
       }
       setTimeout(() => setSuccess(false), 2000);
@@ -424,6 +427,18 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
             )}
           </div>
         )}
+
+        {/* Referral */}
+        <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+          <div className="relative">
+            <input type="checkbox" checked={isReferral}
+              onChange={(e) => setIsReferral(e.target.checked)} className="sr-only peer" />
+            <div className="w-4 h-4 rounded border-2 border-neutral-300 bg-white peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-colors duration-150 flex items-center justify-center">
+              {isReferral && <Check className="w-2.5 h-2.5 text-white" />}
+            </div>
+          </div>
+          <span className="text-xs font-semibold text-neutral-500">По рекомендации</span>
+        </label>
 
         {/* Comments */}
         <div>
