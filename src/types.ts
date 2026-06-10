@@ -50,6 +50,7 @@ export interface ShiftSession {
 export interface CheckinLead extends LeadReport {
   yclientsAttendance: number | null;
   yclientsStaff: string | null;
+  yclientsDeleted: boolean | null;
   yookassaPaid: boolean;
   yookassaAmount: number | null;
 }

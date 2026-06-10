@@ -2,3 +2,4 @@
 - [Database schema](database-schema.md) — 3 shared tables: marketing_users, leads_reporting, commission_rules. SHARED DB — do not drop/rename columns.
 - [Commission formula](commission-formula.md) — new formula: showUps×visitRate + hours×85 + bookings×poRate; rates conditional on poThreshold (default 140).
 - [Shift tracking](shift-tracking.md) — work_sessions table; client-only timer (setInterval); ShiftWidget in Sidebar for managers only; 7 API endpoints under /api/shifts.
+- [Performance optimizations](perf-optimizations.md) — server/cache.ts (TTL cache); ETag headers on leads/rules/users; in-flight deduplication in useData; 50-item pagination + debounce in LeadList; poll 60s.

@@ -216,8 +216,16 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
   const [clientPhone, setClientPhone] = useState(initialLead?.clientPhone || '');
   const [bookingDate, setBookingDate] = useState(initialLead?.bookingDate || new Date().toISOString().split('T')[0]);
   const [city, setCity] = useState(initialLead?.city || '');
-  const [depositRequired, setDepositRequired] = useState(initialLead?.depositRequired || false);
   const [depositAmount, setDepositAmount] = useState(initialLead?.depositAmount || 300);
+
+  function calcDepositRequired(dateStr: string): boolean {
+    if (!dateStr) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const booking = new Date(dateStr); booking.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((booking.getTime() - today.getTime()) / 86400000);
+    return diffDays > 3;
+  }
+  const depositRequired = calcDepositRequired(bookingDate);
   const [isReferral, setIsReferral] = useState(initialLead?.isReferral || false);
   const [visitCost, setVisitCost] = useState(initialLead?.visitCost ?? 2090);
   const [comments, setComments] = useState(initialLead?.comments || '');
@@ -400,33 +408,37 @@ export default function LeadForm({ initialLead, onSave, onCancel, currentUserRol
           </div>
         </div>
 
-        {/* Deposit — admin only */}
-        {currentUserRole === 'admin' && (
-          <div className="border p-4 rounded-2xl bg-neutral-50 border-neutral-100">
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <div className="relative">
-                <input type="checkbox" checked={depositRequired}
-                  onChange={(e) => setDepositRequired(e.target.checked)} className="sr-only peer" />
-                <div className="w-5 h-5 rounded-md border-2 border-neutral-300 bg-white peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-colors duration-150 flex items-center justify-center">
-                  {depositRequired && <Check className="w-3 h-3 text-white" />}
-                </div>
-              </div>
-              <span className="text-sm font-semibold text-neutral-700">Предоплата</span>
-            </label>
-
-            {depositRequired && (
-              <div className="mt-4 max-w-xs">
-                <label className={labelClass}>Сумма (₽)</label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-3 text-neutral-400 font-bold text-sm">₽</span>
-                  <input type="number" placeholder="300" value={depositAmount || ''}
-                    onChange={(e) => setDepositAmount(parseInt(e.target.value) || 0)}
-                    className="w-full pl-8 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-semibold rounded-xl transition-colors duration-150 text-sm" />
-                </div>
-              </div>
-            )}
+        {/* Deposit — auto-calculated from booking date */}
+        <div className="border p-4 rounded-2xl bg-neutral-50 border-neutral-100">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-neutral-700">Предоплата</span>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
+              depositRequired
+                ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                : 'bg-neutral-100 text-neutral-400 border border-neutral-200'
+            }`}>
+              {depositRequired ? 'Обязательна' : 'Не нужна'}
+            </span>
           </div>
-        )}
+          <p className="mt-1.5 text-[11px] text-neutral-400">
+            {depositRequired
+              ? 'Дата визита больше 3 дней — предоплата обязательна'
+              : 'Ближайшие 3 дня — предоплата не требуется'
+            }
+          </p>
+
+          {depositRequired && (
+            <div className="mt-4 max-w-xs">
+              <label className={labelClass}>Сумма (₽)</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-neutral-400 font-bold text-sm">₽</span>
+                <input type="number" placeholder="300" value={depositAmount || ''}
+                  onChange={(e) => setDepositAmount(parseInt(e.target.value) || 0)}
+                  className="w-full pl-8 pr-4 py-3 bg-white border border-neutral-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none text-neutral-900 font-semibold rounded-xl transition-colors duration-150 text-sm" />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Referral */}
         <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">

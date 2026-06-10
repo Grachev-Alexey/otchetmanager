@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { db } from '../db';
+import { cache, TTL } from '../cache';
 
 const router = Router();
+const USERS_KEY = 'users:all';
 
 function mapRow(row: any) {
   return {
@@ -18,11 +20,24 @@ function dbRequired(res: any) {
 }
 
 // GET /api/users
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
+
+  const cached = cache.get<ReturnType<typeof mapRow>[]>(USERS_KEY);
+  if (cached) {
+    if (req.headers['if-none-match'] === cached.etag) return res.status(304).end();
+    res.setHeader('ETag', cached.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json(cached.data);
+  }
+
   try {
     const result = await db.pool.query('SELECT * FROM marketing_users ORDER BY name ASC');
-    return res.json(result.rows.map(mapRow));
+    const data = result.rows.map(mapRow);
+    const entry = cache.set(USERS_KEY, data, TTL.USERS);
+    res.setHeader('ETag', entry.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -55,6 +70,7 @@ router.post('/', async (req, res) => {
             [name, originalName]
           ),
         ]);
+        cache.del('leads:all');
       }
     } else {
       await db.pool.query(
@@ -63,6 +79,7 @@ router.post('/', async (req, res) => {
         [name, role, pin, dept]
       );
     }
+    cache.del(USERS_KEY);
     return res.json({ success: true, name });
   } catch (err: any) {
     return res.status(500).json({ error: 'Database write error: ' + err.message });
@@ -75,6 +92,7 @@ router.delete('/:name', async (req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
   try {
     await db.pool.query('DELETE FROM marketing_users WHERE name = $1', [name]);
+    cache.del(USERS_KEY);
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

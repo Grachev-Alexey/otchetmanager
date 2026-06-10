@@ -1,56 +1,76 @@
 import { Router } from 'express';
 import { db } from '../db';
+import { cache, TTL } from '../cache';
 
 const router = Router();
+
+const LEADS_KEY   = 'leads:all';
+const CHECKIN_PFX = 'leads:checkin:';
 
 function dbRequired(res: any) {
   return res.status(503).json({ error: 'База данных недоступна' });
 }
 
+function mapLead(r: any) {
+  return {
+    id: r.id,
+    managerName: r.manager_name,
+    clientName: r.client_name,
+    clientPhone: r.client_phone,
+    amocrmLeadId: r.amocrm_lead_id,
+    bookingDate: r.booking_date,
+    status: r.status,
+    city: r.city || '',
+    depositRequired: r.deposit_required,
+    depositAmount: parseFloat(r.deposit_amount),
+    depositPaid: r.deposit_paid,
+    isReferral: r.is_referral ?? false,
+    visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
+    comments: r.comments,
+    yookassaPaid: r.yookassa_status === 'succeeded',
+    yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 // GET /api/leads
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
+
+  const cached = cache.get<ReturnType<typeof mapLead>[]>(LEADS_KEY);
+  if (cached) {
+    if (req.headers['if-none-match'] === cached.etag) return res.status(304).end();
+    res.setHeader('ETag', cached.etag);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return res.json(cached.data);
+  }
+
   try {
-    // CTE materialises one pass over yookassa instead of N correlated subqueries.
-    // deal_id is BIGINT; amocrm_lead_id is VARCHAR — cast once in CTE, then join on text.
     const result = await db.pool.query(`
-      WITH yoo AS (
-        SELECT DISTINCT ON (deal_id::text)
-          deal_id::text AS lead_id,
-          status,
-          summa
-        FROM yookassa
-        WHERE status = 'succeeded'
-        ORDER BY deal_id::text, deal_id
-      )
       SELECT
         lr.*,
         yoo.status AS yookassa_status,
         yoo.summa  AS yookassa_amount
       FROM leads_reporting lr
-      LEFT JOIN yoo ON lr.amocrm_lead_id <> '' AND yoo.lead_id = lr.amocrm_lead_id
+      LEFT JOIN LATERAL (
+        SELECT status, summa
+        FROM yookassa
+        WHERE lr.amocrm_lead_id <> ''
+          AND deal_id::text = lr.amocrm_lead_id
+          AND status = 'succeeded'
+          AND date::date BETWEEN lr.created_at::date
+              AND (lr.created_at::date + INTERVAL '1 day')
+        ORDER BY date ASC
+        LIMIT 1
+      ) yoo ON true
       ORDER BY lr.booking_date DESC, lr.created_at DESC
     `);
-    return res.json(result.rows.map(r => ({
-      id: r.id,
-      managerName: r.manager_name,
-      clientName: r.client_name,
-      clientPhone: r.client_phone,
-      amocrmLeadId: r.amocrm_lead_id,
-      bookingDate: r.booking_date,
-      status: r.status,
-      city: r.city || '',
-      depositRequired: r.deposit_required,
-      depositAmount: parseFloat(r.deposit_amount),
-      depositPaid: r.deposit_paid,
-      isReferral: r.is_referral ?? false,
-      visitCost: r.visit_cost != null ? parseFloat(r.visit_cost) : 2090,
-      comments: r.comments,
-      yookassaPaid: r.yookassa_status === 'succeeded',
-      yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    })));
+    const data = result.rows.map(mapLead);
+    const entry = cache.set(LEADS_KEY, data, TTL.LEADS);
+    res.setHeader('ETag', entry.etag);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: 'Database query error: ' + err.message });
   }
@@ -91,6 +111,15 @@ router.get('/lookup', async (req, res) => {
 router.get('/checkin', async (req, res) => {
   const { managerName, role } = req.query as { managerName: string; role: string };
   if (!db.pool || !db.isConnected) return dbRequired(res);
+
+  const cacheKey = `${CHECKIN_PFX}${role}:${managerName || ''}`;
+  const cached = cache.get<any[]>(cacheKey);
+  if (cached) {
+    if (req.headers['if-none-match'] === cached.etag) return res.status(304).end();
+    res.setHeader('ETag', cached.etag);
+    return res.json(cached.data);
+  }
+
   try {
     const isAdmin = role === 'admin';
     const params: any[] = isAdmin ? [] : [managerName];
@@ -129,7 +158,7 @@ router.get('/checkin', async (req, res) => {
       ORDER BY lr.booking_date DESC
     `, params);
 
-    return res.json(result.rows.map(r => ({
+    const data = result.rows.map(r => ({
       id: r.id,
       managerName: r.manager_name,
       clientName: r.client_name,
@@ -147,7 +176,11 @@ router.get('/checkin', async (req, res) => {
       yclientsStaff: r.yclients_staff ?? null,
       yookassaPaid: r.yookassa_status === 'succeeded',
       yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
-    })));
+    }));
+
+    const entry = cache.set(cacheKey, data, TTL.SHIFTS);
+    res.setHeader('ETag', entry.etag);
+    return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -168,6 +201,8 @@ router.patch('/:id/quick', async (req, res) => {
       `UPDATE leads_reporting SET ${sets.join(', ')} WHERE id = $${vals.length}`,
       vals
     );
+    cache.del(LEADS_KEY);
+    cache.delPrefix(CHECKIN_PFX);
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -214,6 +249,9 @@ router.post('/', async (req, res) => {
     `, [leadId, managerName, clientName, clientPhone || '', amocrmLeadId || '',
         bookingDate, finalStatus, city || '', !!depositRequired, depositAmount || 0,
         !!depositPaid, !!isReferral, visitCost != null ? visitCost : 2090, comments || '', now, now]);
+
+    cache.del(LEADS_KEY);
+    cache.delPrefix(CHECKIN_PFX);
     return res.json({ id: leadId, success: true });
   } catch (err: any) {
     return res.status(500).json({ error: 'Database write error: ' + err.message });
@@ -226,6 +264,8 @@ router.delete('/:id', async (req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
   try {
     await db.pool.query('DELETE FROM leads_reporting WHERE id = $1', [id]);
+    cache.del(LEADS_KEY);
+    cache.delPrefix(CHECKIN_PFX);
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

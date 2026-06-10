@@ -25,6 +25,10 @@ if (viviUrl) {
       connectionString: viviUrl,
       ssl: false,
       connectionTimeoutMillis: 8000,
+      max: 8,
+      min: 1,
+      idleTimeoutMillis: 30_000,
+      allowExitOnIdle: true,
     });
     db.status.provider = 'postgres';
     db.status.connectionInfo = '77.95.201.27:5432/vivi-n8n-stat';
@@ -160,6 +164,19 @@ export async function bootstrapDb(): Promise<void> {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_leads_reporting_status
         ON leads_reporting(status)
+    `);
+
+    // Index on yookassa for the CTE scan: filter by status first, then deal_id.
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_yookassa_status_deal
+        ON yookassa(status, deal_id)
+    `);
+
+    // Expression index on yclients_record date so the checkin JOIN can filter by date
+    // before doing the expensive phone regex match (110K rows → few dozen per day).
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_yclients_date_visit_date
+        ON yclients_record((date_visit::date))
     `);
 
     client.release();

@@ -60,7 +60,7 @@ export default function App() {
       if (document.visibilityState === 'visible') {
         refreshLeads();
       }
-    }, 30_000);
+    }, 60_000);
     return () => clearInterval(id);
   }, [isAuthenticated, refreshLeads]);
 
@@ -236,6 +236,8 @@ export default function App() {
                 <CheckinPage
                   currentUser={currentUser}
                   onRefreshLeads={refreshLeads}
+                  onEditLead={handleEditLead}
+                  allUsers={allUsers}
                 />
               </motion.div>
             )}

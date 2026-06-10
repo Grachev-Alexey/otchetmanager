@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type { LeadReport, CommissionRules, StaffMember } from '../types';
 
@@ -17,16 +17,56 @@ export function useData() {
   const [allUsers, setAllUsers] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const leadsInflight = useRef<Promise<void> | null>(null);
+  const rulesInflight = useRef<Promise<void> | null>(null);
+  const usersInflight = useRef<Promise<void> | null>(null);
+
   const refreshLeads = useCallback(async () => {
-    try { setLeads(await api.leads.list()); } catch (e) { console.error('[Data] Failed to fetch leads:', e); }
+    if (leadsInflight.current) return leadsInflight.current;
+    const p: Promise<void> = (async () => {
+      try {
+        const data = await api.leads.list();
+        setLeads(data);
+      } catch (e) {
+        console.error('[Data] Failed to fetch leads:', e);
+      } finally {
+        leadsInflight.current = null;
+      }
+    })();
+    leadsInflight.current = p;
+    return p;
   }, []);
 
   const refreshRules = useCallback(async () => {
-    try { setRules(await api.rules.get()); } catch (e) { console.error('[Data] Failed to fetch rules:', e); }
+    if (rulesInflight.current) return rulesInflight.current;
+    const p: Promise<void> = (async () => {
+      try {
+        const data = await api.rules.get();
+        setRules(data);
+      } catch (e) {
+        console.error('[Data] Failed to fetch rules:', e);
+      } finally {
+        rulesInflight.current = null;
+      }
+    })();
+    rulesInflight.current = p;
+    return p;
   }, []);
 
   const refreshUsers = useCallback(async () => {
-    try { setAllUsers(await api.users.list()); } catch (e) { console.error('[Data] Failed to fetch users:', e); }
+    if (usersInflight.current) return usersInflight.current;
+    const p: Promise<void> = (async () => {
+      try {
+        const data = await api.users.list();
+        setAllUsers(data);
+      } catch (e) {
+        console.error('[Data] Failed to fetch users:', e);
+      } finally {
+        usersInflight.current = null;
+      }
+    })();
+    usersInflight.current = p;
+    return p;
   }, []);
 
   const initialize = useCallback(async () => {

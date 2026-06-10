@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { LeadReport, LeadStatus } from '../types';
@@ -33,13 +33,23 @@ function fmtDate(str: string): string {
   return `${String(d.getDate()).padStart(2, '0')} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function FilterDatePicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+function FilterDatePicker({
+  valueFrom, valueTo, onChange, label,
+}: {
+  valueFrom: string;
+  valueTo: string;
+  onChange: (from: string, to: string) => void;
+  label: string;
+}) {
   const [open, setOpen] = useState(false);
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const [hoverDate, setHoverDate] = useState<string | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const today = todayMsk();
-  const initDate = parseDateStr(value) || new Date();
+
+  const initDate = parseDateStr(valueFrom) || new Date();
   const [viewYear, setViewYear] = useState(initDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(initDate.getMonth());
 
@@ -51,9 +61,11 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
   };
 
   const handleOpen = () => {
-    if (!open) updatePos();
+    if (!open) { updatePos(); setSelecting(null); setHoverDate(null); }
     setOpen(o => !o);
   };
+
+  const handleClose = () => { setOpen(false); setSelecting(null); setHoverDate(null); };
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +74,7 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
       if (
         btnRef.current && !btnRef.current.contains(target) &&
         dropRef.current && !dropRef.current.contains(target)
-      ) setOpen(false);
+      ) handleClose();
     }
     function handleScroll() { updatePos(); }
     document.addEventListener('mousedown', handleClick);
@@ -91,7 +103,30 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
     else setViewMonth(m => m + 1);
   }
 
-  const isActive = !!value;
+  const handleDayClick = (dateStr: string) => {
+    if (!selecting) {
+      setSelecting(dateStr);
+    } else {
+      const from = selecting < dateStr ? selecting : dateStr;
+      const to   = selecting < dateStr ? dateStr : selecting;
+      onChange(from, to);
+      setSelecting(null);
+      setHoverDate(null);
+      setOpen(false);
+    }
+  };
+
+  const rangeFrom = selecting || valueFrom;
+  const rangeTo   = selecting ? (hoverDate || '') : valueTo;
+
+  const isActive = !!(valueFrom || valueTo);
+
+  const displayLabel = (() => {
+    if (selecting) return `${fmtDate(selecting)} →`;
+    if (!valueFrom) return 'Все';
+    if (!valueTo || valueFrom === valueTo) return fmtDate(valueFrom);
+    return `${fmtDate(valueFrom)} — ${fmtDate(valueTo)}`;
+  })();
 
   return (
     <div className="relative flex items-center">
@@ -108,7 +143,7 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
         <CalendarDays className={`w-3 h-3 shrink-0 ${isActive ? 'text-white/70' : 'text-neutral-400'}`} />
         <span className={`font-medium ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>{label}</span>
         <span className={isActive ? 'text-white/40' : 'text-neutral-300'}>·</span>
-        <span className="font-bold">{value ? fmtDate(value) : 'Все'}</span>
+        <span className="font-bold">{displayLabel}</span>
       </button>
       <ChevronDown className={`absolute right-2 w-3 h-3 pointer-events-none ${isActive ? 'text-white/60' : 'text-neutral-400'}`} />
 
@@ -122,9 +157,9 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
           <div className="flex gap-2 mb-3 pb-3 border-b border-neutral-100">
             <button
               type="button"
-              onClick={() => { onChange(''); setOpen(false); }}
+              onClick={() => { onChange('', ''); setSelecting(null); handleClose(); }}
               className={`flex-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                !value ? 'bg-neutral-950 text-white' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50 border border-neutral-150'
+                !valueFrom && !valueTo && !selecting ? 'bg-neutral-950 text-white' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50 border border-neutral-150'
               }`}
             >
               Все записи
@@ -135,15 +170,21 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
                 const d = parseDateStr(today) || new Date();
                 setViewYear(d.getFullYear());
                 setViewMonth(d.getMonth());
-                onChange(today);
-                setOpen(false);
+                onChange(today, today);
+                setSelecting(null);
+                handleClose();
               }}
               className={`flex-1 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                value === today ? 'bg-indigo-600 text-white' : 'text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
+                valueFrom === today && valueTo === today ? 'bg-indigo-600 text-white' : 'text-indigo-600 hover:bg-indigo-50 border border-indigo-100'
               }`}
             >
               Сегодня
             </button>
+          </div>
+
+          {/* Hint */}
+          <div className="mb-2 text-center text-[10px] font-bold uppercase tracking-widest text-neutral-400 h-4">
+            {selecting ? 'Выберите конечную дату' : 'Выберите начальную дату'}
           </div>
 
           {/* Month navigation */}
@@ -169,17 +210,28 @@ function FilterDatePicker({ value, onChange, label }: { value: string; onChange:
             {cells.map((day, i) => {
               if (!day) return <div key={i} />;
               const dateStr = toDateStr(new Date(viewYear, viewMonth, day));
-              const isSelected = value === dateStr;
-              const isToday = today === dateStr;
+              const effectiveFrom = rangeFrom < rangeTo ? rangeFrom : rangeTo;
+              const effectiveTo   = rangeFrom < rangeTo ? rangeTo : rangeFrom;
+              const isStart   = dateStr === effectiveFrom && !!effectiveFrom;
+              const isEnd     = dateStr === effectiveTo && !!effectiveTo && effectiveTo !== effectiveFrom;
+              const isInRange = !!effectiveFrom && !!effectiveTo && dateStr > effectiveFrom && dateStr < effectiveTo;
+              const isToday   = today === dateStr;
               return (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => { onChange(dateStr); setOpen(false); }}
-                  className={`text-xs font-medium rounded-lg py-1.5 transition-colors duration-100 cursor-pointer
-                    ${isSelected ? 'bg-indigo-600 text-white font-bold' :
-                      isToday ? 'bg-indigo-50 text-indigo-700 font-bold' :
-                      'hover:bg-neutral-100 text-neutral-700'}`}
+                  onClick={() => handleDayClick(dateStr)}
+                  onMouseEnter={() => selecting && setHoverDate(dateStr)}
+                  onMouseLeave={() => selecting && setHoverDate(null)}
+                  className={`text-xs font-medium py-1.5 transition-colors duration-75 cursor-pointer relative
+                    ${isStart || isEnd
+                      ? 'bg-indigo-600 text-white font-bold rounded-lg'
+                      : isInRange
+                        ? 'bg-indigo-50 text-indigo-700 rounded-none'
+                        : isToday
+                          ? 'bg-neutral-100 text-neutral-800 font-bold rounded-lg'
+                          : 'hover:bg-neutral-100 text-neutral-700 rounded-lg'
+                    }`}
                 >
                   {day}
                 </button>
@@ -201,6 +253,8 @@ interface LeadListProps {
   shiftActive?: boolean;
 }
 
+const PAGE_SIZE = 50;
+
 export default function LeadList({
   leads,
   onEdit,
@@ -209,12 +263,21 @@ export default function LeadList({
   currentManagerName,
   shiftActive,
 }: LeadListProps) {
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [managerFilter, setManagerFilter] = useState<string>('all');
-  const [bookingDateFilter, setBookingDateFilter] = useState<string>('');
-  const [createdAtFilter, setCreatedAtFilter] = useState<string>(() => todayMsk());
+  const [bookingDateFrom, setBookingDateFrom] = useState<string>('');
+  const [bookingDateTo, setBookingDateTo] = useState<string>('');
+  const [createdAtFrom, setCreatedAtFrom] = useState<string>(() => todayMsk());
+  const [createdAtTo, setCreatedAtTo] = useState<string>(() => todayMsk());
   const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid' | 'not_required'>('all');
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 200);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const toggleStatus = (id: string) => {
     setStatusFilters(prev => {
@@ -258,6 +321,12 @@ export default function LeadList({
     return lead.status !== 'showed_up' && lead.status !== 'no_show';
   };
 
+  const filterSig = useMemo(() =>
+    `${search}|${Array.from(statusFilters).sort().join(',')}|${managerFilter}|${bookingDateFrom}|${bookingDateTo}|${createdAtFrom}|${createdAtTo}|${depositFilter}`,
+    [search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter]
+  );
+  useEffect(() => { setPageSize(PAGE_SIZE); }, [filterSig]);
+
   const filteredLeads = useMemo(() => {
     const term = search.toLowerCase();
     return authorizedLeads.filter(lead => {
@@ -275,13 +344,19 @@ export default function LeadList({
 
       const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
 
-      const bookingDateMatch = !bookingDateFilter || String(lead.bookingDate).slice(0, 10) === bookingDateFilter;
+      const bd = String(lead.bookingDate).slice(0, 10);
+      const bookingDateMatch = (!bookingDateFrom && !bookingDateTo) ||
+        (bookingDateFrom && bookingDateTo ? bd >= bookingDateFrom && bd <= bookingDateTo :
+         bookingDateFrom ? bd >= bookingDateFrom : bd <= bookingDateTo);
 
-      const createdAtMatch = !createdAtFilter || (lead.createdAt && lead.createdAt.slice(0, 10) === createdAtFilter);
+      const cd = lead.createdAt ? lead.createdAt.slice(0, 10) : '';
+      const createdAtMatch = (!createdAtFrom && !createdAtTo) ||
+        (createdAtFrom && createdAtTo ? cd >= createdAtFrom && cd <= createdAtTo :
+         createdAtFrom ? cd >= createdAtFrom : cd <= createdAtTo);
 
       let depositMatch = true;
       if (depositFilter === 'paid') {
-        depositMatch = !!lead.yookassaPaid;
+        depositMatch = !!lead.depositRequired && !!lead.yookassaPaid;
       } else if (depositFilter === 'not_paid') {
         depositMatch = !!lead.depositRequired && !lead.yookassaPaid;
       } else if (depositFilter === 'not_required') {
@@ -290,19 +365,25 @@ export default function LeadList({
 
       return searchMatch && statusMatch && managerMatch && bookingDateMatch && createdAtMatch && depositMatch;
     });
-  }, [authorizedLeads, search, statusFilters, managerFilter, bookingDateFilter, createdAtFilter, depositFilter, currentUserRole]);
+  }, [authorizedLeads, search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, currentUserRole]);
 
   const defaultCreatedAt = todayMsk();
-  const hasActiveFilters = !!bookingDateFilter || createdAtFilter !== defaultCreatedAt || managerFilter !== 'all' || statusFilters.size > 0 || !!search || depositFilter !== 'all';
+  const hasActiveFilters = !!(bookingDateFrom || bookingDateTo) || createdAtFrom !== defaultCreatedAt || createdAtTo !== defaultCreatedAt || managerFilter !== 'all' || statusFilters.size > 0 || !!searchInput || depositFilter !== 'all';
 
-  const resetFilters = () => {
-    setBookingDateFilter('');
-    setCreatedAtFilter(defaultCreatedAt);
+  const resetFilters = useCallback(() => {
+    setBookingDateFrom('');
+    setBookingDateTo('');
+    setCreatedAtFrom(defaultCreatedAt);
+    setCreatedAtTo(defaultCreatedAt);
     setManagerFilter('all');
     setStatusFilters(new Set());
+    setSearchInput('');
     setSearch('');
     setDepositFilter('all');
-  };
+  }, [defaultCreatedAt]);
+
+  const visibleLeads = filteredLeads.slice(0, pageSize);
+  const hasMore = pageSize < filteredLeads.length;
 
   return (
     <div className="space-y-6">
@@ -316,16 +397,16 @@ export default function LeadList({
           <input
             type="text"
             placeholder="Поиск по клиенту, телефону или номеру сделки AmoCRM..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 text-xs bg-white/50 focus:bg-white/90 border border-neutral-200/60 text-neutral-850 placeholder-neutral-400 rounded-xl focus:outline-hidden focus:border-neutral-400 transition-all duration-200 font-semibold shadow-3xs"
           />
         </div>
 
         {/* Row 1: dates + manager + reset */}
         <div className="flex flex-wrap items-center gap-2 z-10">
-          <FilterDatePicker label="Создана" value={createdAtFilter} onChange={setCreatedAtFilter} />
-          <FilterDatePicker label="Визит" value={bookingDateFilter} onChange={setBookingDateFilter} />
+          <FilterDatePicker label="Создана" valueFrom={createdAtFrom} valueTo={createdAtTo} onChange={(f, t) => { setCreatedAtFrom(f); setCreatedAtTo(t); }} />
+          <FilterDatePicker label="Визит" valueFrom={bookingDateFrom} valueTo={bookingDateTo} onChange={(f, t) => { setBookingDateFrom(f); setBookingDateTo(t); }} />
 
           {currentUserRole === 'admin' && (
             <div className="relative flex items-center">
@@ -425,7 +506,7 @@ export default function LeadList({
               </p>
             </motion.div>
           ) : (
-            filteredLeads.map((lead, idx) => {
+            visibleLeads.map((lead, idx) => {
               const statusConfig = getStatusConfig(lead.status);
               const StatusIcon = statusConfig.icon;
               const deletable = canDelete(lead);
@@ -490,17 +571,15 @@ export default function LeadList({
                         </span>
                       )}
 
-                      {lead.depositRequired ? (
-                        <span className={`px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs ${
-                          lead.yookassaPaid
-                            ? 'bg-violet-50 text-violet-700 border-violet-200'
-                            : 'bg-orange-50 text-orange-600 border-orange-200'
-                        }`}>
+                      {lead.yookassaPaid ? (
+                        <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-violet-50 text-violet-700 border-violet-200">
                           <Banknote className="w-3 h-3 shrink-0" />
-                          {lead.yookassaPaid
-                            ? (lead.yookassaAmount ? `Предоплата: ${lead.yookassaAmount.toLocaleString('ru')} ₽` : 'Предоплата внесена')
-                            : 'Предоплата не поступала'
-                          }
+                          {lead.yookassaAmount ? `Предоплата: ${lead.yookassaAmount.toLocaleString('ru')} ₽` : 'Предоплата внесена'}
+                        </span>
+                      ) : lead.depositRequired ? (
+                        <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-orange-50 text-orange-600 border-orange-200">
+                          <Banknote className="w-3 h-3 shrink-0" />
+                          Предоплата не поступала
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 text-[9px] font-medium rounded-lg border shrink-0 flex items-center gap-1.5 bg-neutral-50 text-neutral-400 border-neutral-200/50">
@@ -552,6 +631,17 @@ export default function LeadList({
             })
           )}
         </AnimatePresence>
+
+        {hasMore && (
+          <div className="pt-2 pb-1 text-center">
+            <button
+              onClick={() => setPageSize(p => p + PAGE_SIZE)}
+              className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:text-neutral-800 border border-neutral-200/60 bg-white/60 hover:bg-white px-6 py-2.5 rounded-xl cursor-pointer transition-colors shadow-3xs"
+            >
+              Показать ещё — {filteredLeads.length - visibleLeads.length} из {filteredLeads.length}
+            </button>
+          </div>
+        )}
       </div>
 
     </div>

@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { db } from '../db';
+import { cache, TTL } from '../cache';
 
 const router = Router();
+const RULES_KEY = 'rules:default';
 
 function dbRequired(res: any) {
   return res.status(503).json({ error: 'База данных недоступна' });
@@ -19,14 +21,27 @@ function mapRulesRow(r: any) {
 }
 
 // GET /api/rules
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   if (!db.pool || !db.isConnected) return dbRequired(res);
+
+  const cached = cache.get<ReturnType<typeof mapRulesRow>>(RULES_KEY);
+  if (cached) {
+    if (req.headers['if-none-match'] === cached.etag) return res.status(304).end();
+    res.setHeader('ETag', cached.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json(cached.data);
+  }
+
   try {
     const result = await db.pool.query(
       "SELECT * FROM commission_rules WHERE id = 'default'"
     );
     if (result.rows.length > 0) {
-      return res.json(mapRulesRow(result.rows[0]));
+      const data = mapRulesRow(result.rows[0]);
+      const entry = cache.set(RULES_KEY, data, TTL.RULES);
+      res.setHeader('ETag', entry.etag);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      return res.json(data);
     }
     return res.status(404).json({ error: 'Правила комиссии не найдены' });
   } catch (err: any) {
@@ -54,6 +69,7 @@ router.post('/', async (req, res) => {
         po_threshold     = EXCLUDED.po_threshold,
         updated_at       = CURRENT_TIMESTAMP
     `, [perShowUpHigh, perShowUpLow, perPoHigh, perPoLow, hourlyRate, poThreshold]);
+    cache.del(RULES_KEY);
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: 'Database write error: ' + err.message });
