@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LeadReport, LeadStatus } from '../types';
 import {
-  Search, Edit3, Trash2, Calendar, Phone,
+  Search, Edit3, Trash2, Calendar, Phone, MapPin,
   Layers, CheckCircle2, XCircle, Info,
   Banknote, Star
 } from 'lucide-react';
@@ -35,6 +35,7 @@ export default function LeadList({
   const [createdAtFrom, setCreatedAtFrom] = useState<string>(() => todayMsk());
   const [createdAtTo,   setCreatedAtTo]   = useState<string>(() => todayMsk());
   const [depositFilter, setDepositFilter] = useState<'all' | 'paid' | 'not_paid' | 'not_required'>('all');
+  const [cityFilter, setCityFilter]       = useState<string>('all');
   const [pageSize, setPageSize]           = useState(PAGE_SIZE);
 
   useEffect(() => {
@@ -62,6 +63,11 @@ export default function LeadList({
     [leads]
   );
 
+  const uniqueCities = useMemo(() =>
+    Array.from(new Set(leads.map(l => l.city).filter(Boolean))).sort() as string[],
+    [leads]
+  );
+
   const getStatusConfig = (status: LeadStatus) => {
     switch (status) {
       case 'booked':       return { text: 'Запись создана',  icon: Calendar,    colorClasses: 'bg-indigo-50 border-indigo-200/50 text-indigo-700 font-semibold' };
@@ -79,8 +85,8 @@ export default function LeadList({
   };
 
   const filterSig = useMemo(() =>
-    `${search}|${Array.from(statusFilters).sort().join(',')}|${managerFilter}|${bookingDateFrom}|${bookingDateTo}|${createdAtFrom}|${createdAtTo}|${depositFilter}`,
-    [search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter]
+    `${search}|${Array.from(statusFilters).sort().join(',')}|${managerFilter}|${bookingDateFrom}|${bookingDateTo}|${createdAtFrom}|${createdAtTo}|${depositFilter}|${cityFilter}`,
+    [search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, cityFilter]
   );
   useEffect(() => { setPageSize(PAGE_SIZE); }, [filterSig]);
 
@@ -101,6 +107,8 @@ export default function LeadList({
 
       const managerMatch = currentUserRole !== 'admin' || managerFilter === 'all' || lead.managerName === managerFilter;
 
+      const cityMatch = cityFilter === 'all' || lead.city === cityFilter;
+
       const bd = String(lead.bookingDate).slice(0, 10);
       const bookingDateMatch = (!bookingDateFrom && !bookingDateTo) || (
         bookingDateFrom && bookingDateTo
@@ -116,18 +124,20 @@ export default function LeadList({
       );
 
       let depositMatch = true;
-      if (depositFilter === 'paid')         depositMatch = !!lead.yookassaPaid;
-      else if (depositFilter === 'not_paid' || depositFilter === 'not_required') depositMatch = !lead.yookassaPaid;
+      if      (depositFilter === 'paid')         depositMatch = !!lead.yookassaPaid;
+      else if (depositFilter === 'not_paid')     depositMatch = !!lead.depositRequired && !lead.yookassaPaid;
+      else if (depositFilter === 'not_required') depositMatch = !lead.depositRequired;
 
-      return searchMatch && statusMatch && managerMatch && bookingDateMatch && createdAtMatch && depositMatch;
+      return searchMatch && statusMatch && managerMatch && cityMatch && bookingDateMatch && createdAtMatch && depositMatch;
     });
-  }, [authorizedLeads, search, statusFilters, managerFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, currentUserRole]);
+  }, [authorizedLeads, search, statusFilters, managerFilter, cityFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, currentUserRole]);
 
   const defaultCreatedAt = todayMsk();
   const hasActiveFilters = !!(bookingDateFrom || bookingDateTo)
     || createdAtFrom !== defaultCreatedAt
     || createdAtTo   !== defaultCreatedAt
     || managerFilter !== 'all'
+    || cityFilter    !== 'all'
     || statusFilters.size > 0
     || !!searchInput
     || depositFilter !== 'all';
@@ -138,6 +148,7 @@ export default function LeadList({
     setCreatedAtFrom(defaultCreatedAt);
     setCreatedAtTo(defaultCreatedAt);
     setManagerFilter('all');
+    setCityFilter('all');
     setStatusFilters(new Set());
     setSearchInput('');
     setSearch('');
@@ -176,6 +187,16 @@ export default function LeadList({
               onChange={setManagerFilter}
               options={uniqueManagers.map(m => ({ value: m, label: m }))}
               allLabel="Все менеджеры"
+              allValue="all"
+            />
+          )}
+
+          {uniqueCities.length > 0 && (
+            <PortalSelect
+              value={cityFilter}
+              onChange={setCityFilter}
+              options={uniqueCities.map(c => ({ value: c, label: c }))}
+              allLabel="Все города"
               allValue="all"
             />
           )}
@@ -344,6 +365,13 @@ export default function LeadList({
                         <div className="w-1 h-1 rounded-full bg-neutral-350 shrink-0" />
                         <span>{lead.managerName}</span>
                       </div>
+
+                      {lead.city && (
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                          <span>{lead.city}</span>
+                        </div>
+                      )}
 
                       {lead.amocrmLeadId && (
                         <div className="flex items-center gap-1.5">

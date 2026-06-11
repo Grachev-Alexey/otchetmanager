@@ -75,5 +75,21 @@ export function useData() {
     setLoading(false);
   }, [refreshLeads, refreshRules, refreshUsers]);
 
-  return { leads, rules, allUsers, loading, refreshLeads, refreshRules, refreshUsers, initialize };
+  const applyLeadOptimistic = useCallback((lead: LeadReport) => {
+    setLeads(prev => {
+      const idx = prev.findIndex(l => l.id === lead.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = lead;
+        return next;
+      }
+      return [lead, ...prev];
+    });
+  }, []);
+
+  const removeLeadOptimistic = useCallback((id: string) => {
+    setLeads(prev => prev.filter(l => l.id !== id));
+  }, []);
+
+  return { leads, rules, allUsers, loading, refreshLeads, refreshRules, refreshUsers, initialize, applyLeadOptimistic, removeLeadOptimistic };
 }

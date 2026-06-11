@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
-      ORDER BY lr.booking_date DESC, lr.created_at DESC
+      ORDER BY lr.created_at DESC
     `);
     const data = result.rows.map(mapLead);
     const entry = cache.set(LEADS_KEY, data, TTL.LEADS);
@@ -151,6 +151,9 @@ router.get('/checkin', async (req, res) => {
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
+      LEFT JOIN leads l_amo
+        ON lr.amocrm_lead_id <> ''
+       AND l_amo.deal_id::text = lr.amocrm_lead_id
       LEFT JOIN LATERAL (
         SELECT
           yr2.attendance,
@@ -168,9 +171,8 @@ router.get('/checkin', async (req, res) => {
             WHERE ys.record_id = yr2.record_id
           ) AS services
         FROM yclients_record yr2
-        WHERE LENGTH(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g')) >= 10
-          AND RIGHT(REGEXP_REPLACE(COALESCE(lr.client_phone,''), '[^0-9]', '', 'g'), 10)
-              = RIGHT(yr2.client_phone, 10)
+        WHERE l_amo.client_id IS NOT NULL
+          AND yr2.client_id = l_amo.client_id
           AND yr2.date_visit::date = lr.booking_date
         ORDER BY yr2.deleted ASC, yr2.record_id DESC
         LIMIT 1
@@ -202,6 +204,7 @@ router.get('/checkin', async (req, res) => {
       yclientsServices: r.yclients_services ?? null,
       yookassaPaid: r.yookassa_status === 'succeeded',
       yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
+      createdAt: r.created_at,
     }));
 
     const entry = cache.set(cacheKey, data, TTL.SHIFTS);

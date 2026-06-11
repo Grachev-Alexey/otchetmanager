@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  CheckCircle, XCircle, RefreshCw, Phone, Banknote,
-  Edit3, Search, MapPin, Star, Eye, EyeOff, X,
+  CheckCircle, CheckCircle2, XCircle, RefreshCw, Phone, Banknote,
+  Edit3, Search, MapPin, Star, Eye, EyeOff, X, Copy, Check,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import type { CheckinLead, StaffMember } from '../types';
 import { api } from '../api/client';
@@ -15,14 +16,26 @@ interface Props {
 }
 
 const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const PAGE_SIZE = 30;
 
 function fmtDate(raw: string): string {
+  const d = new Date(raw);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+function fmtDateShort(raw: string): string {
+  if (!raw) return '';
   const d = new Date(raw);
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+function fmtCreatedAt(raw: string): string {
+  if (!raw) return '';
+  const d = new Date(raw);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
 function fmtDateYcl(raw: string): string {
-  // raw is "2026-04-20 17:50:00" from DB (no timezone — Moscow time)
   if (!raw) return '';
   const parts = raw.split(' ');
   const [year, month, day] = (parts[0] || '').split('-').map(Number);
@@ -47,8 +60,8 @@ function daysAgo(raw: string): string {
   const diff = Math.floor((todayMsk.getTime() - bookDay.getTime()) / 86_400_000);
   if (diff === 1) return 'вчера';
   if (diff === 0) return 'сегодня';
-  if (diff <= 4) return `${diff} дня назад`;
-  return `${diff} дней назад`;
+  if (diff <= 4) return `${diff} дня`;
+  return `${diff} дн`;
 }
 
 function fmtPhone(p: string): string {
@@ -66,32 +79,28 @@ type YclientsFilter = 'all' | 'no_data' | 'waiting' | 'confirmed' | 'showed' | '
 type DepositFilter  = 'all' | 'paid' | 'not_paid' | 'no_deposit';
 
 const RECORD_STATUS: Record<string, { text: string; cls: string }> = {
-  booked:      { text: 'Запись',      cls: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
-  rescheduled: { text: 'Перенос',     cls: 'bg-amber-50 text-amber-600 border-amber-200'   },
-  showed_up:   { text: 'Пришёл ✓',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  no_show:     { text: 'Не пришёл',  cls: 'bg-rose-50 text-rose-600 border-rose-200'       },
-  cancelled:   { text: 'Отменено',   cls: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
+  booked:      { text: 'Запись',     cls: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+  rescheduled: { text: 'Перенос',    cls: 'bg-amber-50 text-amber-600 border-amber-200'   },
+  showed_up:   { text: 'Пришёл ✓',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  no_show:     { text: 'Не пришёл', cls: 'bg-rose-50 text-rose-600 border-rose-200'       },
+  cancelled:   { text: 'Отменено',  cls: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
 };
 
 function yclLabel(att: number | null, deleted?: boolean | null) {
-  if (deleted) return { text: 'Удалено',            cls: 'text-neutral-500', dot: 'bg-neutral-400' };
+  if (deleted) return { text: 'Удалено',           cls: 'text-neutral-500', dot: 'bg-neutral-400' };
   switch (att) {
-    case  1: return { text: 'Пришёл',             cls: 'text-emerald-700', dot: 'bg-emerald-500' };
-    case -1: return { text: 'Не пришёл',          cls: 'text-rose-700',    dot: 'bg-rose-500'    };
-    case  0: return { text: 'Ожидание',           cls: 'text-amber-700',   dot: 'bg-amber-400'   };
-    case  2: return { text: 'Подтвердил запись',  cls: 'text-indigo-700',  dot: 'bg-indigo-500'  };
-    default: return { text: 'Нет данных Yclients', cls: 'text-neutral-400', dot: 'bg-neutral-300' };
+    case  1: return { text: 'Пришёл',            cls: 'text-emerald-700', dot: 'bg-emerald-500' };
+    case -1: return { text: 'Не пришёл',         cls: 'text-rose-700',    dot: 'bg-rose-500'    };
+    case  0: return { text: 'Ожидание',          cls: 'text-amber-700',   dot: 'bg-amber-400'   };
+    case  2: return { text: 'Подтвердил',        cls: 'text-indigo-700',  dot: 'bg-indigo-500'  };
+    default: return { text: 'Нет данных Ycl',   cls: 'text-neutral-400', dot: 'bg-neutral-300' };
   }
 }
 
 function PillGroup<T extends string>({
-  value,
-  onChange,
-  options,
+  value, onChange, options,
 }: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { id: T; label: string }[];
+  value: T; onChange: (v: T) => void; options: { id: T; label: string }[];
 }) {
   return (
     <div className="flex gap-1 overflow-x-auto no-scrollbar">
@@ -112,6 +121,31 @@ function PillGroup<T extends string>({
   );
 }
 
+function CopyAmoId({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  const handle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={handle}
+      title="Скопировать ID"
+      className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 transition-colors font-medium group cursor-pointer"
+    >
+      <span className="text-[8px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
+      <span className="font-mono">{id}</span>
+      {copied
+        ? <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+        : <Copy className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+      }
+    </button>
+  );
+}
+
 export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, allUsers = [] }: Props) {
   const [items, setItems]         = useState<CheckinLead[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -126,7 +160,13 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
   const [dateTo, setDateTo]               = useState('');
   const [ycFilter, setYcFilter]           = useState<YclientsFilter>('all');
   const [depFilter, setDepFilter]         = useState<DepositFilter>('all');
+  const [cityFilter, setCityFilter]       = useState('all');
   const [showChecked, setShowChecked]     = useState(false);
+
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [page, setPage]         = useState(1);
+  const [showAll, setShowAll]   = useState(false);
 
   const isAdmin = currentUser.role === 'admin';
 
@@ -157,10 +197,26 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
         setDismissed(p => new Set(p).add(id));
         setFading(p => { const s = new Set(p); s.delete(id); return s; });
       }, 500);
+      setSelected(p => { const s = new Set(p); s.delete(id); return s; });
       await onRefreshLeads();
       await fetchItems();
     } catch { /* ignore */ }
     setBusy(p => { const s = new Set(p); s.delete(id); return s; });
+  };
+
+  const handleBulkStatus = async (status: 'showed_up' | 'no_show') => {
+    setBulkBusy(true);
+    const ids = Array.from(selected);
+    await Promise.all(ids.map(id => api.checkin.quickUpdate(id, { status }).catch(() => {})));
+    ids.forEach(id => setFading(p => new Set(p).add(id)));
+    setTimeout(() => {
+      ids.forEach(id => setDismissed(p => new Set(p).add(id)));
+      setFading(new Set());
+    }, 500);
+    setSelected(new Set());
+    await onRefreshLeads();
+    await fetchItems();
+    setBulkBusy(false);
   };
 
   const uniqueManagers = useMemo(() =>
@@ -168,57 +224,82 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
     [items]
   );
 
+  const uniqueCities = useMemo(() =>
+    Array.from(new Set(items.map(l => l.city).filter(Boolean))).sort() as string[],
+    [items]
+  );
+
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
     return items.filter(l => {
       if (dismissed.has(l.id ?? '')) return false;
-
       if (!showChecked && (l.status === 'showed_up' || l.status === 'no_show' || l.status === 'cancelled')) return false;
-
       if (term && !(
         l.clientName.toLowerCase().includes(term) ||
         (l.clientPhone && l.clientPhone.includes(term)) ||
-        (l.amocrmLeadId && l.amocrmLeadId.toLowerCase().includes(term)) ||
-        (l.clientName.toLowerCase().includes(term))
+        (l.amocrmLeadId && l.amocrmLeadId.toLowerCase().includes(term))
       )) return false;
-
       if (managerFilter !== 'all' && l.managerName !== managerFilter) return false;
-
+      if (cityFilter !== 'all' && l.city !== cityFilter) return false;
       const bd = String(l.bookingDate).slice(0, 10);
       if (dateFrom && bd < dateFrom) return false;
       if (dateTo   && bd > dateTo)   return false;
-
       if (ycFilter !== 'all') {
-        if (ycFilter === 'deleted'     && !l.yclientsDeleted)                                                return false;
-        if (ycFilter === 'no_data'     && (l.yclientsDeleted || l.yclientsAttendance !== null))             return false;
-        if (ycFilter === 'waiting'     && (l.yclientsDeleted || l.yclientsAttendance !== 0))                return false;
-        if (ycFilter === 'confirmed'   && (l.yclientsDeleted || l.yclientsAttendance !== 2))                return false;
-        if (ycFilter === 'showed'      && (l.yclientsDeleted || l.yclientsAttendance !== 1))                return false;
-        if (ycFilter === 'no_show_ycl' && (l.yclientsDeleted || l.yclientsAttendance !== -1))              return false;
+        if (ycFilter === 'deleted'     && !l.yclientsDeleted)                                    return false;
+        if (ycFilter === 'no_data'     && (l.yclientsDeleted || l.yclientsAttendance !== null))  return false;
+        if (ycFilter === 'waiting'     && (l.yclientsDeleted || l.yclientsAttendance !== 0))     return false;
+        if (ycFilter === 'confirmed'   && (l.yclientsDeleted || l.yclientsAttendance !== 2))     return false;
+        if (ycFilter === 'showed'      && (l.yclientsDeleted || l.yclientsAttendance !== 1))     return false;
+        if (ycFilter === 'no_show_ycl' && (l.yclientsDeleted || l.yclientsAttendance !== -1))   return false;
       }
-
       if (depFilter === 'paid'       && !l.yookassaPaid)   return false;
       if (depFilter === 'not_paid'   && !!l.yookassaPaid)  return false;
-      if (depFilter === 'no_deposit' && !!l.yookassaPaid)  return false;
-
+      if (depFilter === 'no_deposit' && (!!l.yookassaPaid || l.depositRequired)) return false;
       return true;
     });
-  }, [items, dismissed, search, managerFilter, dateFrom, dateTo, ycFilter, depFilter, showChecked]);
+  }, [items, dismissed, search, managerFilter, cityFilter, dateFrom, dateTo, ycFilter, depFilter, showChecked]);
 
-  const hasFilters = !!(search || searchInput || managerFilter !== 'all' || dateFrom || dateTo || ycFilter !== 'all' || depFilter !== 'all');
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [search, managerFilter, cityFilter, dateFrom, dateTo, ycFilter, depFilter, showChecked]);
+
+  const paginated = useMemo(() =>
+    showAll ? filtered : filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page, showAll]
+  );
+
+  const hasFilters = !!(search || searchInput || managerFilter !== 'all' || cityFilter !== 'all' || dateFrom || dateTo || ycFilter !== 'all' || depFilter !== 'all');
 
   const resetFilters = () => {
     setSearchInput(''); setSearch('');
     setManagerFilter('all');
+    setCityFilter('all');
     setDateFrom(''); setDateTo('');
     setYcFilter('all');
     setDepFilter('all');
   };
 
-  const pendingCount = filtered.filter(l =>
-    !l.yclientsDeleted && l.yclientsAttendance !== 1 && l.yclientsAttendance !== -1
-    && l.status !== 'showed_up' && l.status !== 'no_show'
-  ).length;
+  const pendingOnPage = paginated.filter(l =>
+    (l.status === 'booked' || l.status === 'rescheduled') && !dismissed.has(l.id ?? '')
+  );
+
+  const allPageSelected = pendingOnPage.length > 0 && pendingOnPage.every(l => selected.has(l.id ?? ''));
+
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      setSelected(p => {
+        const s = new Set(p);
+        pendingOnPage.forEach(l => s.delete(l.id ?? ''));
+        return s;
+      });
+    } else {
+      setSelected(p => {
+        const s = new Set(p);
+        pendingOnPage.forEach(l => s.add(l.id ?? ''));
+        return s;
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -229,7 +310,7 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
@@ -240,8 +321,8 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest mt-1">
             {filtered.length === 0
               ? 'Записей нет'
-              : `${filtered.length} ${filtered.length === 1 ? 'запись' : filtered.length < 5 ? 'записи' : 'записей'}`
-                + (pendingCount > 0 ? ` · ${pendingCount} ожидают` : '')}
+              : `${filtered.length} ${filtered.length === 1 ? 'запись' : filtered.length < 5 ? 'записи' : 'записей'}`}
+            {totalPages > 1 && ` · стр. ${page}/${totalPages}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -269,8 +350,6 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
 
       {/* Filters */}
       <div className="spatial-glass rounded-2xl p-4 flex flex-col gap-3">
-
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
           <input
@@ -287,13 +366,11 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           )}
         </div>
 
-        {/* Date presets + range */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick presets */}
           {[
-            { label: 'Вчера',   from: mskDateStr(-1), to: mskDateStr(-1) },
-            { label: 'Неделя',  from: mskDateStr(-7), to: mskDateStr(0)  },
-            { label: 'Месяц',   from: mskDateStr(-30),to: mskDateStr(0)  },
+            { label: 'Вчера',  from: mskDateStr(-1), to: mskDateStr(-1) },
+            { label: 'Неделя', from: mskDateStr(-7), to: mskDateStr(0)  },
+            { label: 'Месяц',  from: mskDateStr(-30),to: mskDateStr(0)  },
           ].map(p => {
             const active = dateFrom === p.from && dateTo === p.to;
             return (
@@ -312,7 +389,6 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
             valueTo={dateTo}
             onChange={(f, t) => { setDateFrom(f); setDateTo(t); }}
           />
-
           {isAdmin && (
             <PortalSelect
               value={managerFilter}
@@ -322,7 +398,15 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
               allValue="all"
             />
           )}
-
+          {uniqueCities.length > 0 && (
+            <PortalSelect
+              value={cityFilter}
+              onChange={setCityFilter}
+              options={uniqueCities.map(c => ({ value: c, label: c }))}
+              allLabel="Все города"
+              allValue="all"
+            />
+          )}
           {hasFilters && (
             <button
               onClick={resetFilters}
@@ -333,7 +417,6 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           )}
         </div>
 
-        {/* Yclients status pills */}
         <PillGroup<YclientsFilter>
           value={ycFilter}
           onChange={setYcFilter}
@@ -342,13 +425,12 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
             { id: 'no_data',     label: 'Нет данных' },
             { id: 'waiting',     label: 'Ожидание' },
             { id: 'confirmed',   label: 'Подтвердил' },
-            { id: 'showed',      label: 'Пришёл ↗' },
-            { id: 'no_show_ycl', label: 'Не пришёл ↗' },
-            { id: 'deleted',     label: 'Удалено ↗' },
+            { id: 'showed',      label: 'Пришёл' },
+            { id: 'no_show_ycl', label: 'Не пришёл' },
+            { id: 'deleted',     label: 'Удалено' },
           ]}
         />
 
-        {/* Deposit pills */}
         <PillGroup<DepositFilter>
           value={depFilter}
           onChange={setDepFilter}
@@ -361,9 +443,53 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
         />
       </div>
 
+      {/* Bulk actions bar */}
+      {isAdmin && selected.size > 0 && (
+        <div className="spatial-glass rounded-xl px-4 py-3 flex items-center gap-3 border border-neutral-200/60">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mr-auto">
+            Выбрано: {selected.size}
+          </span>
+          <button
+            disabled={bulkBusy}
+            onClick={() => handleBulkStatus('showed_up')}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl cursor-pointer transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CheckCircle className="w-3.5 h-3.5" /> Все пришли
+          </button>
+          <button
+            disabled={bulkBusy}
+            onClick={() => handleBulkStatus('no_show')}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[10px] font-bold uppercase tracking-widest rounded-xl cursor-pointer transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <XCircle className="w-3.5 h-3.5" /> Не пришли
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="p-2 rounded-xl bg-white/60 border border-neutral-200 hover:bg-neutral-100 text-neutral-400 cursor-pointer transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Select all on page (admin, pending items exist) */}
+      {isAdmin && pendingOnPage.length > 0 && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer"
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${allPageSelected ? 'bg-neutral-950 border-neutral-950' : 'bg-white border-neutral-300'}`}>
+              {allPageSelected && <Check className="w-2.5 h-2.5 text-white" />}
+            </div>
+            {allPageSelected ? 'Снять выделение' : `Выбрать всех на странице (${pendingOnPage.length})`}
+          </button>
+        </div>
+      )}
+
       {/* Empty state */}
       {filtered.length === 0 && (
-        <div className="text-center py-20 space-y-3">
+        <div className="text-center py-16 space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-neutral-50 border border-neutral-150 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-6 h-6 text-neutral-300" />
           </div>
@@ -377,41 +503,60 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
       )}
 
       {/* Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.map(lead => {
+      <div className="flex flex-col gap-2.5">
+        {paginated.map(lead => {
           const id       = lead.id ?? '';
           const isBusy   = busy.has(id);
           const isFading = fading.has(id);
           const ycl      = yclLabel(lead.yclientsAttendance, lead.yclientsDeleted);
-          const hasSuggestion = !lead.yclientsDeleted && (lead.yclientsAttendance === 1 || lead.yclientsAttendance === -1);
           const isPending = lead.status === 'booked' || lead.status === 'rescheduled';
           const recordSt  = RECORD_STATUS[lead.status] ?? RECORD_STATUS['booked'];
+          const isSelected = selected.has(id);
 
-          const services     = lead.yclientsServices ?? [];
-          const paidServices = services.filter(sv => (sv.paid ?? 0) > 0);
-          const totalPaid    = paidServices.reduce((s, sv) => s + sv.paid!, 0);
-          const hasYcl    = lead.yclientsAttendance !== null || lead.yclientsDeleted || lead.yclientsDate;
+          const services     = Array.isArray(lead.yclientsServices) ? lead.yclientsServices : [];
+          const paidServices = services.filter(sv => sv != null && (sv.paid ?? 0) > 0);
+          const totalPaid    = paidServices.reduce((s, sv) => s + (sv.paid ?? 0), 0);
+          const hasYcl       = lead.yclientsAttendance !== null || lead.yclientsDeleted || lead.yclientsDate;
 
           return (
             <div
               key={id}
-              className={`spatial-glass rounded-2xl p-5 flex flex-col gap-4 transition-opacity duration-500 ${isFading ? 'opacity-0' : 'opacity-100'}`}
+              className={`spatial-glass rounded-xl p-4 flex flex-col gap-3 transition-opacity duration-500 ${isFading ? 'opacity-0' : 'opacity-100'} ${isSelected ? 'ring-1 ring-neutral-950/20' : ''}`}
             >
-              {/* Top row */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider whitespace-nowrap">
-                    {fmtDate(lead.bookingDate)}
+              {/* Row 1: meta */}
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                {/* Checkbox (admin + pending only) */}
+                {isAdmin && isPending && (
+                  <button
+                    onClick={() => setSelected(p => {
+                      const s = new Set(p);
+                      s.has(id) ? s.delete(id) : s.add(id);
+                      return s;
+                    })}
+                    className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors cursor-pointer ${isSelected ? 'bg-neutral-950 border-neutral-950' : 'bg-white border-neutral-300 hover:border-neutral-500'}`}
+                  >
+                    {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                  </button>
+                )}
+
+                {/* Booking date */}
+                <span className="text-[10px] font-bold text-neutral-700 whitespace-nowrap">
+                  {fmtDateShort(String(lead.bookingDate))}
+                </span>
+
+                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border whitespace-nowrap ${recordSt.cls}`}>
+                  {recordSt.text}
+                </span>
+
+                {/* Created date — always visible */}
+                {lead.createdAt && (
+                  <span className="text-[9px] text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded font-medium whitespace-nowrap">
+                    созд. {fmtCreatedAt(lead.createdAt)}
                   </span>
-                  <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider bg-neutral-100 px-1.5 py-0.5 rounded-md whitespace-nowrap">
-                    {daysAgo(lead.bookingDate)}
-                  </span>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border whitespace-nowrap ${recordSt.cls}`}>
-                    {recordSt.text}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider truncate max-w-[80px]">
+                )}
+
+                <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                  <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">
                     {lead.managerName}
                   </span>
                   {onEditLead && (
@@ -425,102 +570,79 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                 </div>
               </div>
 
-              {/* Client info */}
-              <div className="space-y-1.5">
-                <p className="font-display font-bold text-neutral-950 text-base leading-snug tracking-tight">
+              {/* Row 2: client */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-display font-bold text-neutral-950 text-sm leading-snug">
                   {lead.clientName}
-                  {lead.isReferral && (
-                    <Star className="inline w-3.5 h-3.5 text-amber-400 ml-2 mb-0.5" />
-                  )}
-                </p>
-                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {lead.clientPhone && (
-                    <a href={`tel:${lead.clientPhone}`} className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-neutral-800 transition-colors font-medium">
-                      <Phone className="w-3 h-3 text-neutral-400 shrink-0" />
-                      {fmtPhone(lead.clientPhone)}
-                    </a>
-                  )}
-                  {lead.city && (
-                    <span className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-medium">
-                      <MapPin className="w-3 h-3 shrink-0" />
-                      {lead.city}
-                    </span>
-                  )}
-                  {lead.amocrmLeadId && (
-                    <span className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-medium">
-                      <span className="text-[8px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
-                      <span className="font-mono select-all">#{lead.amocrmLeadId}</span>
-                    </span>
-                  )}
-                </div>
+                  {lead.isReferral && <Star className="inline w-3 h-3 text-amber-400 ml-1.5 mb-0.5" />}
+                </span>
+                {lead.clientPhone && (
+                  <a href={`tel:${lead.clientPhone}`} className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-800 transition-colors font-medium">
+                    <Phone className="w-3 h-3 text-neutral-400 shrink-0" />
+                    {fmtPhone(lead.clientPhone)}
+                  </a>
+                )}
+                {lead.city && (
+                  <span className="flex items-center gap-1 text-[10px] text-neutral-400 font-medium">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {lead.city}
+                  </span>
+                )}
+                {lead.amocrmLeadId && <CopyAmoId id={lead.amocrmLeadId} />}
               </div>
 
-              {/* Yclients section */}
-              <div className={`rounded-xl border overflow-hidden ${hasYcl ? 'border-neutral-200' : 'border-neutral-100'}`}>
-                {/* Attendance row */}
-                <div className={`flex items-center justify-between gap-2 px-3.5 py-2.5 ${
-                  lead.yclientsDeleted          ? 'bg-neutral-50' :
-                  lead.yclientsAttendance === 1  ? 'bg-emerald-50' :
-                  lead.yclientsAttendance === -1 ? 'bg-rose-50' :
-                  lead.yclientsAttendance === 2  ? 'bg-indigo-50' :
-                  lead.yclientsAttendance === 0  ? 'bg-amber-50' :
-                  'bg-neutral-50/50'
+              {/* Row 3: Yclients + payment */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Yclients status */}
+                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold ${
+                  lead.yclientsDeleted          ? 'bg-neutral-50 border border-neutral-200' :
+                  lead.yclientsAttendance === 1  ? 'bg-emerald-50 border border-emerald-200' :
+                  lead.yclientsAttendance === -1 ? 'bg-rose-50 border border-rose-200' :
+                  lead.yclientsAttendance === 2  ? 'bg-indigo-50 border border-indigo-200' :
+                  lead.yclientsAttendance === 0  ? 'bg-amber-50 border border-amber-200' :
+                  'bg-neutral-50 border border-neutral-100'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${ycl.dot}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${ycl.cls}`}>{ycl.text}</span>
-                    {lead.yclientsStaff && (
-                      <span className="text-[9px] text-neutral-400 font-medium">· {lead.yclientsStaff}</span>
-                    )}
-                  </div>
-                  {lead.yclientsDate && (
-                    <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider whitespace-nowrap">
-                      {fmtDateYcl(lead.yclientsDate)}
-                    </span>
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ycl.dot}`} />
+                  <span className={ycl.cls}>{ycl.text}</span>
+                  {lead.yclientsStaff && (
+                    <span className="text-neutral-400 font-medium">· {lead.yclientsStaff}</span>
                   )}
-                  {hasSuggestion && !lead.status.startsWith('showed') && !lead.status.startsWith('no') && (
-                    <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-400 shrink-0">Подтвердить</span>
+                  {lead.yclientsDate && (
+                    <span className="text-neutral-400 font-medium ml-1">{fmtDateYcl(lead.yclientsDate)}</span>
                   )}
                 </div>
 
-                {/* Paid services only */}
+                {/* Paid services */}
                 {paidServices.length > 0 && (
-                  <div className="border-t border-neutral-100 bg-white/50 px-3.5 py-2 space-y-0.5">
+                  <div className="flex items-center gap-1 flex-wrap">
                     {paidServices.map((svc, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-neutral-500 leading-tight truncate">{svc.name}</span>
-                        <span className="text-[10px] font-semibold text-neutral-700 shrink-0">{fmtMoney(svc.paid!)}</span>
-                      </div>
+                      <span key={i} className="text-[10px] text-neutral-600 bg-white/70 border border-neutral-200 px-2 py-1 rounded-lg font-medium">
+                        {svc.name} — {fmtMoney(svc.paid!)}
+                      </span>
                     ))}
                     {paidServices.length > 1 && (
-                      <div className="flex items-center justify-between pt-1 mt-0.5 border-t border-neutral-100">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Итого</span>
-                        <span className="text-[11px] font-bold text-neutral-800">{fmtMoney(totalPaid)}</span>
-                      </div>
+                      <span className="text-[10px] font-bold text-neutral-700 bg-neutral-100 px-2 py-1 rounded-lg border border-neutral-200">
+                        {fmtMoney(totalPaid)}
+                      </span>
                     )}
                   </div>
                 )}
-              </div>
 
-              {/* Payment row */}
-              <div className="flex flex-wrap gap-2">
+                {/* Payment badge */}
                 {lead.yookassaPaid ? (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border bg-violet-50 text-violet-700 border-violet-200">
+                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-lg border bg-violet-50 text-violet-700 border-violet-200">
                     <span className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
-                    {lead.yookassaAmount ? `Предоплата ${fmtMoney(lead.yookassaAmount)}` : 'Предоплата внесена'}
+                    {lead.yookassaAmount ? `ПО ${fmtMoney(lead.yookassaAmount)}` : 'ПО внесена'}
                   </span>
                 ) : lead.depositRequired ? (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border bg-orange-50 text-orange-600 border-orange-200">
+                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-lg border bg-orange-50 text-orange-600 border-orange-200">
                     <Banknote className="w-3 h-3" />
-                    Предоплата не поступала
+                    ПО не поступала
                   </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-medium rounded-lg border bg-neutral-50 text-neutral-400 border-neutral-200/50">
-                    Без предоплаты
-                  </span>
-                )}
+                ) : null}
+
                 {lead.visitCost && lead.visitCost !== 2090 && (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-medium rounded-lg border bg-neutral-50 text-neutral-500 border-neutral-200/50">
+                  <span className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg border bg-neutral-50 text-neutral-500 border-neutral-200/50">
                     Визит: {fmtMoney(lead.visitCost)}
                   </span>
                 )}
@@ -528,19 +650,19 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
 
               {/* Comments */}
               {lead.comments && (
-                <div className="bg-neutral-50/70 px-3.5 py-2.5 rounded-xl border border-neutral-150/45 text-[11px] text-neutral-500 leading-relaxed shadow-3xs">
+                <p className="text-[10.5px] text-neutral-500 leading-relaxed bg-neutral-50/70 px-3 py-2 rounded-lg border border-neutral-100">
                   <span className="font-bold text-[8.5px] uppercase tracking-wider text-neutral-400 mr-2">Примечание:</span>
                   {lead.comments}
-                </div>
+                </p>
               )}
 
-              {/* Action buttons — admin only, only for pending records */}
+              {/* Action buttons */}
               {isAdmin && isPending && (
                 <div className="flex gap-2 pt-0.5">
                   <button
                     disabled={isBusy}
                     onClick={() => handleStatus(id, 'showed_up')}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-emerald-500 hover:bg-emerald-400 text-white"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-emerald-500 hover:bg-emerald-400 text-white"
                   >
                     <CheckCircle className="w-3.5 h-3.5 shrink-0" />
                     Пришёл
@@ -548,7 +670,7 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                   <button
                     disabled={isBusy}
                     onClick={() => handleStatus(id, 'no_show')}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-neutral-100 hover:bg-rose-50 text-neutral-600 hover:text-rose-600 border border-neutral-200/60 hover:border-rose-200"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 bg-neutral-100 hover:bg-rose-50 text-neutral-600 hover:text-rose-600 border border-neutral-200/60 hover:border-rose-200"
                   >
                     <XCircle className="w-3.5 h-3.5 shrink-0" />
                     Не пришёл
@@ -559,6 +681,64 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex flex-col items-center gap-3 pt-1">
+          {/* Show all toggle */}
+          <button
+            onClick={() => setShowAll(v => !v)}
+            className={`text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl border transition-colors duration-150 cursor-pointer ${
+              showAll
+                ? 'bg-neutral-950 text-white border-neutral-950'
+                : 'bg-white/60 text-neutral-500 border-neutral-200/70 hover:bg-white hover:text-neutral-800'
+            }`}
+          >
+            {showAll ? `Постранично (${PAGE_SIZE}/стр.)` : `Показать все (${filtered.length})`}
+          </button>
+
+          {/* Page controls — only when not showing all */}
+          {!showAll && totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-150 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p =>
+                  p === 1 || p === totalPages || Math.abs(p - page) <= 2
+                ).reduce<(number | '…')[]>((acc, p, i, arr) => {
+                  if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('…');
+                  acc.push(p);
+                  return acc;
+                }, []).map((p, i) =>
+                  p === '…'
+                    ? <span key={`ellipsis-${i}`} className="px-2 text-neutral-400 text-xs">…</span>
+                    : <button
+                        key={p}
+                        onClick={() => setPage(p as number)}
+                        className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-colors duration-150 cursor-pointer ${
+                          page === p ? 'bg-neutral-950 text-white' : 'bg-white/60 text-neutral-500 border border-neutral-200/70 hover:bg-white hover:text-neutral-800'
+                        }`}
+                      >{p}</button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 rounded-xl border border-neutral-200/60 bg-white/60 hover:bg-neutral-950 hover:text-white text-neutral-600 transition duration-150 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

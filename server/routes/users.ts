@@ -11,6 +11,7 @@ function mapRow(row: any) {
     name:       row.name,
     role:       row.role,
     department: row.department,
+    pin:        row.pin,
   };
 }
 

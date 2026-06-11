@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Component } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus } from 'lucide-react';
 
@@ -19,6 +19,31 @@ import LeadForm              from './components/LeadForm';
 
 type ActiveMenu = 'dashboard' | 'leads' | 'salary' | 'user_management' | 'checkin' | 'shift_management';
 
+class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: Error) { console.error('[PageErrorBoundary]', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-neutral-400">Произошла ошибка на этой странице</p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="px-4 py-2 bg-neutral-950 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl cursor-pointer"
+          >
+            Повторить
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const SESSION_KEY = 'vivi_marketing_session';
 
 const PAGE_TRANSITION = {
@@ -29,7 +54,7 @@ const PAGE_TRANSITION = {
 };
 
 export default function App() {
-  const { leads, rules, allUsers, loading, refreshLeads, refreshRules, refreshUsers, initialize } = useData();
+  const { leads, rules, allUsers, loading, refreshLeads, refreshRules, refreshUsers, initialize, applyLeadOptimistic, removeLeadOptimistic } = useData();
 
   const [currentUser, setCurrentUser]   = useState<StaffMember | null>(null);
   const [isAuthenticated, setAuth]      = useState(false);
@@ -90,25 +115,29 @@ export default function App() {
 
   const handleSaveLead = useCallback(async (lead: LeadReport): Promise<boolean> => {
     try {
-      await api.leads.save(lead);
-      await refreshLeads();
+      const result = await api.leads.save(lead);
+      const savedLead: LeadReport = { ...lead, id: lead.id || result.id };
+      applyLeadOptimistic(savedLead);
       setIsFormOpen(false);
       setEditingLead(null);
+      refreshLeads();
       return true;
     } catch (err) {
       console.error('[App] Save lead error:', err);
       return false;
     }
-  }, [refreshLeads]);
+  }, [refreshLeads, applyLeadOptimistic]);
 
   const handleDeleteLead = useCallback(async (id: string): Promise<void> => {
     try {
+      removeLeadOptimistic(id);
       await api.leads.delete(id);
-      await refreshLeads();
+      refreshLeads();
     } catch (err) {
       console.error('[App] Delete lead error:', err);
+      refreshLeads();
     }
-  }, [refreshLeads]);
+  }, [refreshLeads, removeLeadOptimistic]);
 
   const handleSaveRules = useCallback(async (newRules: CommissionRules): Promise<boolean> => {
     try {
@@ -233,12 +262,14 @@ export default function App() {
 
             {activeMenu === 'checkin' && (
               <motion.div key="checkin" {...PAGE_TRANSITION}>
-                <CheckinPage
-                  currentUser={currentUser}
-                  onRefreshLeads={refreshLeads}
-                  onEditLead={handleEditLead}
-                  allUsers={allUsers}
-                />
+                <PageErrorBoundary>
+                  <CheckinPage
+                    currentUser={currentUser}
+                    onRefreshLeads={refreshLeads}
+                    onEditLead={handleEditLead}
+                    allUsers={allUsers}
+                  />
+                </PageErrorBoundary>
               </motion.div>
             )}
 
