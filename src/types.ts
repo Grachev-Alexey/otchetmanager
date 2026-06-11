@@ -59,6 +59,7 @@ export interface CheckinLead extends LeadReport {
   yclientsDeleted: boolean | null;
   yclientsDate: string | null;
   yclientsServices: YclientsService[] | null;
+  yclientsOtherDate: string | null;
   yookassaPaid: boolean;
   yookassaAmount: number | null;
 }

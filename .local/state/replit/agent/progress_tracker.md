@@ -1,4 +1,4 @@
-[x] 1. Install the required packages (installed missing `tsx` dev dependency via package manager)
+[x] 1. Install the required packages (installed missing `tsx` dev dependency via npm install)
 [x] 2. Restart the workflow to see if the project is working (app running on port 5000)
 [x] 3. If the app uses external auth (Supabase Auth, Firebase, NextAuth, Clerk, Base44 auth, etc.), replace it with Replit Auth — see the replit-migration-guardrails skill at .local/secondary_skills/replit-migration-guardrails/SKILL.md. Skip if the app has no login flow. (App uses its own PIN-based auth — no external auth provider to replace)
 [x] 4. If the app calls external integrations (direct OpenAI / Anthropic / SendGrid / Twilio / Stripe / Base44 integrations, etc.), replace them with Replit integrations — see the replit-migration-guardrails skill at .local/secondary_skills/replit-migration-guardrails/SKILL.md. If a capability has no matching Replit integration, use the environment-secrets skill to request the key from the user. Skip if none apply. (No external integrations found)

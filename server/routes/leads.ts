@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
           AND deal_id::text = lr.amocrm_lead_id
           AND status = 'succeeded'
           AND date::date BETWEEN lr.created_at::date
-              AND (lr.created_at::date + INTERVAL '1 day')
+              AND (lr.created_at::date + INTERVAL '3 days')
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
@@ -137,6 +137,7 @@ router.get('/checkin', async (req, res) => {
         yr.deleted     AS yclients_deleted,
         yr.date_visit  AS yclients_date,
         yr.services    AS yclients_services,
+        yr_other.date_visit AS yclients_other_date,
         yoo.status     AS yookassa_status,
         yoo.summa      AS yookassa_amount
       FROM leads_reporting lr
@@ -147,7 +148,7 @@ router.get('/checkin', async (req, res) => {
           AND deal_id::text = lr.amocrm_lead_id
           AND status = 'succeeded'
           AND date::date BETWEEN lr.created_at::date
-              AND (lr.created_at::date + INTERVAL '1 day')
+              AND (lr.created_at::date + INTERVAL '3 days')
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
@@ -177,6 +178,16 @@ router.get('/checkin', async (req, res) => {
         ORDER BY yr2.deleted ASC, yr2.record_id DESC
         LIMIT 1
       ) yr ON true
+      LEFT JOIN LATERAL (
+        SELECT yr3.date_visit::text AS date_visit
+        FROM yclients_record yr3
+        WHERE l_amo.client_id IS NOT NULL
+          AND yr3.client_id = l_amo.client_id
+          AND yr3.date_visit::date != lr.booking_date
+          AND (yr3.deleted IS NULL OR yr3.deleted = false)
+        ORDER BY ABS(EXTRACT(epoch FROM (yr3.date_visit::date - lr.booking_date)))
+        LIMIT 1
+      ) yr_other ON true
       WHERE lr.booking_date <= (NOW() AT TIME ZONE 'Europe/Moscow')::date
         ${managerFilter}
       ORDER BY lr.booking_date DESC
@@ -202,6 +213,7 @@ router.get('/checkin', async (req, res) => {
       yclientsDeleted: r.yclients_deleted ?? null,
       yclientsDate: r.yclients_date ?? null,
       yclientsServices: r.yclients_services ?? null,
+      yclientsOtherDate: r.yclients_other_date ?? null,
       yookassaPaid: r.yookassa_status === 'succeeded',
       yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
       createdAt: r.created_at,

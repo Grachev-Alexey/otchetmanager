@@ -44,15 +44,22 @@ If the repl already has related slide decks or visual artifacts, inspect their C
 
 ## Template Selection and Pre-Generation Flow
 
-When creating a NEW slide deck, the backend has already presented the user with template choices (ranked by a classifier) and the user has selected one. The selected template ID and preview image are in your context.
+When creating a NEW slide deck, ask the user for any direction they haven't given before doing anything else. Do not research, outline, or write files first. This is required.
+
+- Call `requestSlideDeckLength` unless the user gave a rough length, slide count, or per-slide outline. A topic, audience, or subject is not a length. Don't skip it by picking a slide count yourself. Do not pass any arguments to this callback.
+- Call `requestSlideStyleDirection` unless the user gave a clear visual style or theme. A topic is not a style. Pass the required `slidesTopic` argument with a short sentence naming the deck's subject.
+
+Judge length and style independently. Having one doesn't let you skip the other. A detailed outline settles length and content but not style, so still call `requestSlideStyleDirection` if no style was given.
+
+Ask one detail per turn: call one tool, wait, then call the next if needed. Don't outline or build until both length and style are known. Skip the above questions only for edits to existing decks, imports/conversions, or when the user asks to skip the questions.
 
 ### Using the Selected Template
 
 This section is about *what* to match, not *when* to start. The order of operations for new decks lives in `<first_build>` — follow that sequence. Do not begin writing slide files from this section; the Content Outline Review still has to happen first.
 
-1. **Study the template preview** — A preview image for the selected template was automatically injected into your context. This is your primary visual target — match it as closely as possible.
+1. **Study the template preview** — For a selected template, a preview image is injected into your context. This is your primary visual target — match it as closely as possible.
 2. **Read the reference file** — Read `templates/<template-id>.md` (relative to the skill file) for exact hex codes, font choices, layout details, source code for all 4 slides, and design patterns.
-3. **Plan Slide 1 fidelity first** — When you do build (after the Content Outline Review in `<first_build>` step 2), write Slide 1 first to match the reference image as closely as possible. Take a screenshot and compare against the reference image to verify fidelity before extending the patterns to the remaining slides.
+3. **Plan Slide 1 fidelity first** — When you do build (after the Content Outline Review in `<first_build>` step 3), write Slide 1 first to match the reference image as closely as possible. Take a screenshot and compare against the reference image to verify fidelity before extending the patterns to the remaining slides.
 4. **Extend patterns to the rest of the deck** — Maintain consistent styling throughout the deck guided by both the reference images and the text description. Templates only ship with ~4 sample slides and their images, so for any additional slides you'll need to fill in the gaps yourself: source or generate fitting images via `imageSearch` or the `media-generation` skill, and extend the template's layout patterns to cover the remaining content.
 
 The preview image is the ground truth. The text description and source code supplement it with precise values. Follow both as your creative direction, then adapt to the specific content.
@@ -151,18 +158,18 @@ This default yields to the user's explicit style request, the selected template,
 <clarifying_questions>
 **If a `.pptx` is attached, do not ask anything — go straight to `importPptx` per "PPTX Import — Handle First".**
 
-Only ask clarifying questions for information the user has not already given you. Before asking anything, scan the user's request for:
+This section is for short clarifying questions other than deck length and visual style.
 
-- **Slide count** ("10 slides", "a short deck", "around 6")
+Deck length and visual style are governed only by "Template Selection and Pre-Generation Flow" — including its edit/import/opt-out skips and one-question-per-turn rule. When either is missing for a new deck, ask with the matching tool. Do not apply the ambiguity test below to length or style.
+
+For other details, do not re-ask what the user already gave:
+
 - **Audience** ("for the board", "for a sales pitch", "internal team")
-- **Tone / aesthetic** ("playful", "corporate", "editorial", "minimal")
+- **Tone** ("playful", "corporate", "editorial")
 - **Brand or company** (named company, attached logo, linked website)
 - **Content topic** (the deck subject — explicit topic vs. vague hand-wave)
-- **Length / depth** (overview vs. detailed)
 
-If the user provided a field, do NOT re-ask it. If they provided enough to start (topic + count/audience/brand, or an exact slide count in an existing deck context), skip questions and build. Use sensible defaults for anything missing — around 6-8 slides, inferred audience, fitting aesthetic.
-
-Only ask when the request is genuinely ambiguous AND the missing information would change the deck materially (e.g. "make a deck" with no topic, no count, no brand — ask). When you do ask, ask the minimum needed to unblock — never re-ask things that were already specified.
+Ask about these only if genuinely ambiguous and the answer would materially change the deck. Otherwise use sensible defaults.
 
 This section governs only short clarifying Q&A. It doesn't override the Content Outline Review; hard outlines skip that step.
 </clarifying_questions>
@@ -172,20 +179,21 @@ This section governs only short clarifying Q&A. It doesn't override the Content 
 
 When building a new slide deck for the first time, follow this exact sequence:
 
-0. **Inventory user-attached assets, then run brand research** if the prompt names a real or real-sounding company, product, organization, or public figure. Attachments take precedence over every research tool — use them verbatim and skip whichever steps they cover. The full path (order, per-step stop conditions, budget caps, failure fallbacks, public-figure variant, user-surfacing rule) lives in `./references/brand_research.md`. **Do not invent brand tokens, revenue, headcount, dates, or product facts for a named entity** — omit unverifiable claims or mark them `[unverified]`.
-1. **Verify content** for any other verifiable claim. If the deck depends on real-world data, statistics, market sizing, recent events, or industry trends — even without a named brand — run a batched `webSearch` (3–5 queries such as `[topic] statistics 2026`, `[industry] market size growth rate`, `[topic] recent news`) and follow up with `webFetch` on 1–2 authoritative sources before `proposeSlideContent`. For purely topical aesthetic decks ("a deck about dogs", "birthday party deck") there's nothing to verify — skip to step 2. If a claim in your draft came from training data rather than a tool call, drop it or mark `[unverified]`.
-2. **Run the Content Outline Review** — call `await proposeSlideContent({prompt, slides})` using only verified facts, and wait for the user's response before continuing. If a research step failed for a named entity, surface the gap (see `brand_research.md` → "Surface gaps to the user" — the rule still applies when the outline review is skipped, via a chat message instead). Skip only for the cases listed in "Skip conditions" under "Template Selection and Pre-Generation Flow".
-3. **Generate images** (if needed): Kick off `generateImageAsync` via the media-generation skill so images generate in parallel while you write slides.
-4. **Write non-manifest files first.** In one parallel batch, write/update `index.html`, `index.css`, and every slide `.tsx` file. Do not write `slides-manifest.json` yet.
+0. **Resolve pre-generation direction** — run "Template Selection and Pre-Generation Flow" before outlining or building; it is the source of truth for missing length/style, tool order, and skip conditions.
+1. **Inventory user-attached assets, then run brand research** if the prompt names a real or real-sounding company, product, organization, or public figure. Attachments take precedence over every research tool — use them verbatim and skip whichever steps they cover. The full path (order, per-step stop conditions, budget caps, failure fallbacks, public-figure variant, user-surfacing rule) lives in `./references/brand_research.md`. **Do not invent brand tokens, revenue, headcount, dates, or product facts for a named entity** — omit unverifiable claims or mark them `[unverified]`.
+2. **Verify content** for any other verifiable claim. If the deck depends on real-world data, statistics, market sizing, recent events, or industry trends — even without a named brand — run a batched `webSearch` (3–5 queries such as `[topic] statistics 2026`, `[industry] market size growth rate`, `[topic] recent news`) and follow up with `webFetch` on 1–2 authoritative sources before `proposeSlideContent`. For purely topical aesthetic decks ("a deck about dogs", "birthday party deck") there's nothing to verify — skip to step 3. If a claim in your draft came from training data rather than a tool call, drop it or mark `[unverified]`.
+3. **Run the Content Outline Review** — only after length and style are known, call `await proposeSlideContent({prompt, slides})` using only verified facts, and wait for the user's response before continuing. This reviews content only; never use it to ask for length or style. If a research step failed for a named entity, surface the gap (see `brand_research.md` → "Surface gaps to the user" — the rule still applies when the outline review is skipped, via a chat message instead). Skip only for the cases listed in "Skip conditions" under "Template Selection and Pre-Generation Flow".
+4. **Generate images** (if needed): Kick off `generateImageAsync` via the media-generation skill so images generate in parallel while you write slides.
+5. **Write non-manifest files first.** In one parallel batch, write/update `index.html`, `index.css`, and every slide `.tsx` file. Do not write `slides-manifest.json` yet.
    - `index.html`: Update Google Fonts links for your chosen display + body fonts.
    - `index.css`: Fill in CSS variables in `:root` with brand palette and font families. Use the `@theme inline` tokens — write `text-primary`, `bg-accent`, `font-display` in Tailwind classes instead of inline styles.
    - Each slide `.tsx` file in `src/pages/slides/`
-5. **Update the manifest last.** After all components/assets exist, re-read `src/data/slides-manifest.json` if present, then write the final manifest entries.
-6. **Run validation**: `pnpm run --filter @workspace/<slug> validate-slides`
-7. **Restart workflow** — done.
+6. **Update the manifest last.** After all components/assets exist, re-read `src/data/slides-manifest.json` if present, then write the final manifest entries.
+7. **Run validation**: `pnpm run --filter @workspace/<slug> validate-slides`
+8. **Restart workflow** — done.
 
 Do NOT restart workflow until all slides and the final manifest are written. Do NOT read slide files you just scaffolded — they are already in your context.
-A quick seamless build is what you are aiming for. If the user gave you an exact slide count (in their prompt or the additional-comments box on the length question), use that exact number. If they picked a length range, pick a slide count that feels right inside that range. Otherwise limit to around 6 — don't go longer unless the user asked for it.
+A quick seamless build is what you are aiming for. If the user gave you an exact slide count (in their prompt or the custom-slide-count field of the `requestSlideDeckLength` question), use that exact number. If they picked a length range, pick a slide count that feels right inside that range. If the length question was skipped (opt-out, edit, or import), default to around 6 — don't go longer unless the user asked for it.
 Avoid screenshotting in the first build. You have two priorities: speed and design.
 </first_build>
 

@@ -36,7 +36,14 @@ function nextMonth(year: number, month: number): [number, number] {
   return month === 12 ? [year + 1, 1] : [year, month + 1];
 }
 
+// Записи — по дате создания
 function filterByMonth(leads: LeadReport[], year: number, month: number): LeadReport[] {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`;
+  return leads.filter(l => l.createdAt && String(l.createdAt).slice(0, 7) === prefix);
+}
+
+// Визиты — по дате визита (клиент пришёл/не пришёл в этом месяце)
+function filterVisitsByMonth(leads: LeadReport[], year: number, month: number): LeadReport[] {
   const prefix = `${year}-${String(month).padStart(2, '0')}`;
   return leads.filter(l => l.bookingDate && String(l.bookingDate).slice(0, 7) === prefix);
 }
@@ -48,7 +55,7 @@ function filterDepositsByMonth(leads: LeadReport[], year: number, month: number)
       return l.createdAt && String(l.createdAt).slice(0, 7) === prefix;
     }
     if (l.status === 'showed_up') {
-      return l.bookingDate && String(l.bookingDate).slice(0, 7) === prefix;
+      return l.createdAt && String(l.createdAt).slice(0, 7) === prefix;
     }
     return false;
   });
@@ -71,18 +78,19 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
   };
 
   const myLeads      = currentUser.role === 'admin' ? leads : leads.filter(l => l.managerName === currentUser.name);
-  const monthLeads   = filterByMonth(myLeads, selectedYear, selectedMonth);
+  const monthLeads   = filterByMonth(myLeads, selectedYear, selectedMonth);       // по created_at
+  const visitLeads   = filterVisitsByMonth(myLeads, selectedYear, selectedMonth); // по booking_date
   const depositLeads = filterDepositsByMonth(myLeads, selectedYear, selectedMonth);
 
   // Stats for the selected period
   const totalCount       = monthLeads.length;
-  const showUps          = monthLeads.filter(l => l.status === 'showed_up').length;
+  const showUps          = visitLeads.filter(l => l.status === 'showed_up').length;
   const regularDeposits  = depositLeads.filter(l => !l.isReferral).length;
   const referralDeposits = depositLeads.filter(l => l.isReferral).length;
   const deposits         = regularDeposits + referralDeposits;
   const weightedDeposits = regularDeposits + referralDeposits * 2;
   const depositSum       = depositLeads.reduce((s, l) => s + (l.yookassaPaid ? (l.yookassaAmount || 0) : 0), 0);
-  const noShows          = monthLeads.filter(l => l.status === 'no_show').length;
+  const noShows          = visitLeads.filter(l => l.status === 'no_show').length;
   const arrivalRate      = totalCount > 0 ? (showUps / totalCount) * 100 : 0;
   const noShowRate       = totalCount > 0 ? Math.round((noShows / totalCount) * 100) : 0;
 
@@ -290,9 +298,10 @@ export default function DashboardPage({ leads, rules, allUsers, currentUser, onN
             {allUsers.filter(s => s.role === 'manager').map(manager => {
               const mLeads   = leads.filter(l => l.managerName === manager.name);
               const ml       = filterByMonth(mLeads, selectedYear, selectedMonth);
+              const vl       = filterVisitsByMonth(mLeads, selectedYear, selectedMonth);
               const mdl      = filterDepositsByMonth(mLeads, selectedYear, selectedMonth);
               const bookings = ml.length;
-              const showUpsM = ml.filter(l => l.status === 'showed_up').length;
+              const showUpsM = vl.filter(l => l.status === 'showed_up').length;
               const regDeps  = mdl.filter(l => !l.isReferral).length;
               const refDeps  = mdl.filter(l => l.isReferral).length;
               const deps     = regDeps + refDeps;

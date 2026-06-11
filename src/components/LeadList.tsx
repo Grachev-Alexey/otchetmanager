@@ -4,12 +4,50 @@ import { LeadReport, LeadStatus } from '../types';
 import {
   Search, Edit3, Trash2, Calendar, Phone, MapPin,
   Layers, CheckCircle2, XCircle, Info,
-  Banknote, Star
+  Banknote, Star, Copy, Check, ExternalLink
 } from 'lucide-react';
 import { FilterDatePicker, PortalSelect } from './ui';
 
 function todayMsk(): string {
   return new Date().toLocaleDateString('sv', { timeZone: 'Europe/Moscow' });
+}
+
+function CopyPhone({ phone }: { phone: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigator.clipboard.writeText(phone).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  };
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+      <a href={`tel:${phone}`} className="font-semibold text-neutral-600 hover:text-neutral-950 transition-colors">{phone}</a>
+      <button onClick={copy} className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Скопировать номер">
+        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-neutral-400" />}
+      </button>
+    </div>
+  );
+}
+
+function AmoLink({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  };
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <a href={`https://wuuuu.amocrm.ru/leads/detail/${id}`} target="_blank" rel="noopener noreferrer"
+        className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-800 transition-colors font-medium">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
+        <span className="font-mono">#{id}</span>
+        <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </a>
+      <button onClick={copy} className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Скопировать ID">
+        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-neutral-400" />}
+      </button>
+    </div>
+  );
 }
 
 interface LeadListProps {
@@ -132,10 +170,8 @@ export default function LeadList({
     });
   }, [authorizedLeads, search, statusFilters, managerFilter, cityFilter, bookingDateFrom, bookingDateTo, createdAtFrom, createdAtTo, depositFilter, currentUserRole]);
 
-  const defaultCreatedAt = todayMsk();
   const hasActiveFilters = !!(bookingDateFrom || bookingDateTo)
-    || createdAtFrom !== defaultCreatedAt
-    || createdAtTo   !== defaultCreatedAt
+    || !!(createdAtFrom || createdAtTo)
     || managerFilter !== 'all'
     || cityFilter    !== 'all'
     || statusFilters.size > 0
@@ -145,15 +181,15 @@ export default function LeadList({
   const resetFilters = useCallback(() => {
     setBookingDateFrom('');
     setBookingDateTo('');
-    setCreatedAtFrom(defaultCreatedAt);
-    setCreatedAtTo(defaultCreatedAt);
+    setCreatedAtFrom('');
+    setCreatedAtTo('');
     setManagerFilter('all');
     setCityFilter('all');
     setStatusFilters(new Set());
     setSearchInput('');
     setSearch('');
     setDepositFilter('all');
-  }, [defaultCreatedAt]);
+  }, []);
 
   const visibleLeads = filteredLeads.slice(0, pageSize);
   const hasMore      = pageSize < filteredLeads.length;
@@ -349,17 +385,16 @@ export default function LeadList({
                     <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-neutral-500 font-medium">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                        <span>Визит <strong className="text-neutral-750">{new Date(lead.bookingDate).toLocaleDateString('ru-RU')}</strong></span>
+                        <span>Визит <strong className="text-neutral-750">{
+                          (() => {
+                            const s = String(lead.bookingDate).slice(0, 10);
+                            const [y, m, d] = s.split('-').map(Number);
+                            return new Date(y, m - 1, d).toLocaleDateString('ru-RU');
+                          })()
+                        }</strong></span>
                       </div>
 
-                      {lead.clientPhone && (
-                        <div className="flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                          <a href={`tel:${lead.clientPhone}`} className="font-semibold text-neutral-600 hover:text-neutral-950 transition-colors">
-                            {lead.clientPhone}
-                          </a>
-                        </div>
-                      )}
+                      {lead.clientPhone && <CopyPhone phone={lead.clientPhone} />}
 
                       <div className="flex items-center gap-1.5">
                         <div className="w-1 h-1 rounded-full bg-neutral-350 shrink-0" />
@@ -373,12 +408,7 @@ export default function LeadList({
                         </div>
                       )}
 
-                      {lead.amocrmLeadId && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] font-bold uppercase tracking-wider text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
-                          <span className="font-mono text-neutral-600 select-all">#{lead.amocrmLeadId}</span>
-                        </div>
-                      )}
+                      {lead.amocrmLeadId && <AmoLink id={lead.amocrmLeadId} />}
                     </div>
 
                     {/* Comment */}

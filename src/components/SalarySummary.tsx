@@ -91,22 +91,24 @@ export default function SalarySummary({
   const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1;
   const isPrevMonthSelected = selectedYear === prevY && selectedMonth === prevM;
 
-  // Filter leads by booking date for bookings/show-ups
   const periodPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  // Записи — по дате создания
   const periodLeads = leads.filter(l =>
+    l.createdAt && String(l.createdAt).slice(0, 7) === periodPrefix
+  );
+  // Визиты — по дате визита
+  const visitPeriodLeads = leads.filter(l =>
     l.bookingDate && String(l.bookingDate).slice(0, 7) === periodPrefix
   );
 
-  // Deposits attributed by when money arrived:
-  // - yookassaPaid → by created_at (record creation date)
-  // - showed_up (no yookassa) → by booking_date (visit date)
+  // Предоплаты — по дате создания записи
   function filterDepositsForManager(managerLeads: LeadReport[]): LeadReport[] {
     return managerLeads.filter(l => {
       if (l.yookassaPaid) {
         return l.createdAt && String(l.createdAt).slice(0, 7) === periodPrefix;
       }
       if (l.status === 'showed_up') {
-        return l.bookingDate && String(l.bookingDate).slice(0, 7) === periodPrefix;
+        return l.createdAt && String(l.createdAt).slice(0, 7) === periodPrefix;
       }
       return false;
     });
@@ -119,14 +121,15 @@ export default function SalarySummary({
   const performances: ManagerPerformance[] = managers.map(managerName => {
     const allMgrLeads  = leads.filter(l => l.managerName === managerName);
     const ml           = periodLeads.filter(l => l.managerName === managerName);
+    const vl           = visitPeriodLeads.filter(l => l.managerName === managerName);
     const dl           = filterDepositsForManager(allMgrLeads);
     const totalBookings    = ml.length;
     const regularDeposits  = dl.filter(l => !l.isReferral).length;
     const referralDeposits = dl.filter(l => l.isReferral).length;
     const totalDeposits    = regularDeposits + referralDeposits;
     const weightedDeposits = regularDeposits + referralDeposits * 2;
-    const totalShowUps     = ml.filter(l => l.status === 'showed_up').length;
-    const totalNoShows     = ml.filter(l => l.status === 'no_show').length;
+    const totalShowUps     = vl.filter(l => l.status === 'showed_up').length;
+    const totalNoShows     = vl.filter(l => l.status === 'no_show').length;
     const workedSeconds    = monthlyHours[managerName] ?? 0;
     const earnedSalary     = calcSalary(totalShowUps, totalDeposits, weightedDeposits, workedSeconds, rules);
     return { managerName, totalBookings, totalDeposits, totalShowUps, totalNoShows, workedSeconds, earnedSalary, leads: ml, referralDeposits };

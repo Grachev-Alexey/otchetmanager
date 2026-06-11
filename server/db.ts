@@ -3,6 +3,11 @@ import pg from 'pg';
 
 dotenv.config();
 
+// pg парсит DATE (OID 1082) как JS Date с локальным часовым поясом сервера —
+// это сдвигает дату на -1 день если сервер в UTC+X (например, UTC+3 Москва).
+// Возвращаем DATE как сырую строку "YYYY-MM-DD" — без какой-либо конвертации.
+pg.types.setTypeParser(1082, (val: string) => val);
+
 export const db = {
   pool: null as pg.Pool | null,
   isConnected: false,

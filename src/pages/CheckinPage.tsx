@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CheckCircle, CheckCircle2, XCircle, RefreshCw, Phone, Banknote,
-  Edit3, Search, MapPin, Star, Eye, EyeOff, X, Copy, Check,
-  ChevronLeft, ChevronRight,
+  Edit3, Trash2, Search, MapPin, Star, Eye, EyeOff, X, Copy, Check,
+  ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react';
 import type { CheckinLead, StaffMember } from '../types';
 import { api } from '../api/client';
@@ -86,14 +86,16 @@ const RECORD_STATUS: Record<string, { text: string; cls: string }> = {
   cancelled:   { text: 'Отменено',  cls: 'bg-neutral-100 text-neutral-500 border-neutral-200' },
 };
 
-function yclLabel(att: number | null, deleted?: boolean | null) {
-  if (deleted) return { text: 'Удалено',           cls: 'text-neutral-500', dot: 'bg-neutral-400' };
+function yclLabel(att: number | null, deleted?: boolean | null, hasOther?: boolean) {
+  if (deleted) return { text: 'Удалено',        cls: 'text-neutral-500', dot: 'bg-neutral-400' };
   switch (att) {
-    case  1: return { text: 'Пришёл',            cls: 'text-emerald-700', dot: 'bg-emerald-500' };
-    case -1: return { text: 'Не пришёл',         cls: 'text-rose-700',    dot: 'bg-rose-500'    };
-    case  0: return { text: 'Ожидание',          cls: 'text-amber-700',   dot: 'bg-amber-400'   };
-    case  2: return { text: 'Подтвердил',        cls: 'text-indigo-700',  dot: 'bg-indigo-500'  };
-    default: return { text: 'Нет данных Ycl',   cls: 'text-neutral-400', dot: 'bg-neutral-300' };
+    case  1: return { text: 'Пришёл',           cls: 'text-emerald-700', dot: 'bg-emerald-500' };
+    case -1: return { text: 'Не пришёл',        cls: 'text-rose-700',    dot: 'bg-rose-500'    };
+    case  0: return { text: 'Ожидание',         cls: 'text-amber-700',   dot: 'bg-amber-400'   };
+    case  2: return { text: 'Подтвердил',       cls: 'text-indigo-700',  dot: 'bg-indigo-500'  };
+    default:
+      if (hasOther) return { text: 'Перенесена',      cls: 'text-amber-600',   dot: 'bg-amber-400'   };
+      return            { text: 'Запись не найдена', cls: 'text-neutral-400', dot: 'bg-neutral-300' };
   }
 }
 
@@ -123,7 +125,7 @@ function PillGroup<T extends string>({
 
 function CopyAmoId({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
-  const handle = (e: React.MouseEvent) => {
+  const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(id).then(() => {
       setCopied(true);
@@ -131,18 +133,42 @@ function CopyAmoId({ id }: { id: string }) {
     });
   };
   return (
-    <button
-      onClick={handle}
-      title="Скопировать ID"
-      className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 transition-colors font-medium group cursor-pointer"
-    >
-      <span className="text-[8px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
-      <span className="font-mono">{id}</span>
-      {copied
-        ? <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-        : <Copy className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-      }
-    </button>
+    <div className="flex items-center gap-1 group">
+      <a
+        href={`https://wuuuu.amocrm.ru/leads/detail/${id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 transition-colors font-medium"
+      >
+        <span className="text-[8px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-400 px-1.5 py-0.5 rounded leading-none">AmoCRM</span>
+        <span className="font-mono">{id}</span>
+        <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </a>
+      <button onClick={copy} className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ml-0.5" title="Скопировать ID">
+        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-neutral-400" />}
+      </button>
+    </div>
+  );
+}
+
+function CopyPhoneCheckin({ phone }: { phone: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(phone).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  };
+  return (
+    <div className="flex items-center gap-1 group">
+      <a href={`tel:${phone}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-800 transition-colors font-medium">
+        <Phone className="w-3 h-3 text-neutral-400 shrink-0" />
+        {fmtPhone(phone)}
+      </a>
+      <button onClick={copy} className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ml-0.5" title="Скопировать номер">
+        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-neutral-400" />}
+      </button>
+    </div>
   );
 }
 
@@ -202,6 +228,20 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
       await fetchItems();
     } catch { /* ignore */ }
     setBusy(p => { const s = new Set(p); s.delete(id); return s; });
+  };
+
+  const [deleteBusy, setDeleteBusy] = useState<Set<string>>(new Set());
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Удалить эту запись?')) return;
+    setDeleteBusy(p => new Set(p).add(id));
+    try {
+      await api.leads.delete(id);
+      setDismissed(p => new Set(p).add(id));
+      await onRefreshLeads();
+      await fetchItems();
+    } catch { /* ignore */ }
+    setDeleteBusy(p => { const s = new Set(p); s.delete(id); return s; });
   };
 
   const handleBulkStatus = async (status: 'showed_up' | 'no_show') => {
@@ -508,7 +548,9 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           const id       = lead.id ?? '';
           const isBusy   = busy.has(id);
           const isFading = fading.has(id);
-          const ycl      = yclLabel(lead.yclientsAttendance, lead.yclientsDeleted);
+          const noDataOnDate = lead.yclientsAttendance === null && !lead.yclientsDeleted;
+          const showOtherDate = (noDataOnDate || lead.yclientsDeleted || lead.yclientsAttendance === -1) && !!lead.yclientsOtherDate;
+          const ycl      = yclLabel(lead.yclientsAttendance, lead.yclientsDeleted, !!lead.yclientsOtherDate && noDataOnDate);
           const isPending = lead.status === 'booked' || lead.status === 'rescheduled';
           const recordSt  = RECORD_STATUS[lead.status] ?? RECORD_STATUS['booked'];
           const isSelected = selected.has(id);
@@ -516,7 +558,7 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
           const services     = Array.isArray(lead.yclientsServices) ? lead.yclientsServices : [];
           const paidServices = services.filter(sv => sv != null && (sv.paid ?? 0) > 0);
           const totalPaid    = paidServices.reduce((s, sv) => s + (sv.paid ?? 0), 0);
-          const hasYcl       = lead.yclientsAttendance !== null || lead.yclientsDeleted || lead.yclientsDate;
+          const hasYcl       = lead.yclientsAttendance !== null || lead.yclientsDeleted || lead.yclientsDate || lead.yclientsOtherDate;
 
           return (
             <div
@@ -567,6 +609,15 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                       <Edit3 className="w-3 h-3" />
                     </button>
                   )}
+                  {isAdmin && (
+                    <button
+                      disabled={deleteBusy.has(id)}
+                      onClick={() => handleDelete(id)}
+                      className="p-1.5 rounded-lg bg-white/70 border border-neutral-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-neutral-400 cursor-pointer transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -576,12 +627,7 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                   {lead.clientName}
                   {lead.isReferral && <Star className="inline w-3 h-3 text-amber-400 ml-1.5 mb-0.5" />}
                 </span>
-                {lead.clientPhone && (
-                  <a href={`tel:${lead.clientPhone}`} className="flex items-center gap-1 text-[10px] text-neutral-500 hover:text-neutral-800 transition-colors font-medium">
-                    <Phone className="w-3 h-3 text-neutral-400 shrink-0" />
-                    {fmtPhone(lead.clientPhone)}
-                  </a>
-                )}
+                {lead.clientPhone && <CopyPhoneCheckin phone={lead.clientPhone} />}
                 {lead.city && (
                   <span className="flex items-center gap-1 text-[10px] text-neutral-400 font-medium">
                     <MapPin className="w-3 h-3 shrink-0" />
@@ -600,15 +646,22 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                   lead.yclientsAttendance === -1 ? 'bg-rose-50 border border-rose-200' :
                   lead.yclientsAttendance === 2  ? 'bg-indigo-50 border border-indigo-200' :
                   lead.yclientsAttendance === 0  ? 'bg-amber-50 border border-amber-200' :
+                  noDataOnDate && lead.yclientsOtherDate ? 'bg-amber-50 border border-amber-200' :
                   'bg-neutral-50 border border-neutral-100'
                 }`}>
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ycl.dot}`} />
                   <span className={ycl.cls}>{ycl.text}</span>
-                  {lead.yclientsStaff && (
+                  {!noDataOnDate && lead.yclientsStaff && (
                     <span className="text-neutral-400 font-medium">· {lead.yclientsStaff}</span>
                   )}
-                  {lead.yclientsDate && (
+                  {!noDataOnDate && lead.yclientsDate && (
                     <span className="text-neutral-400 font-medium ml-1">{fmtDateYcl(lead.yclientsDate)}</span>
+                  )}
+                  {showOtherDate && (
+                    <>
+                      <span className="text-neutral-300 mx-0.5">·</span>
+                      <span className="text-neutral-500 font-medium">→ {fmtDateYcl(lead.yclientsOtherDate!)}</span>
+                    </>
                   )}
                 </div>
 

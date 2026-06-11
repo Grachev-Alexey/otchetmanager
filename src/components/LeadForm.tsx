@@ -39,7 +39,7 @@ export default function LeadForm({
 
   const [bookingDate, setBookingDate] = useState(() => {
     const raw = initialLead?.bookingDate;
-    if (!raw) return new Date().toISOString().split('T')[0];
+    if (!raw) return new Date().toLocaleDateString('sv', { timeZone: 'Europe/Moscow' });
     return String(raw).slice(0, 10);
   });
 
