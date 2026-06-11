@@ -30,6 +30,8 @@ function mapLead(r: any) {
     comments: r.comments,
     yookassaPaid: r.yookassa_status === 'succeeded',
     yookassaAmount: r.yookassa_amount ? parseFloat(r.yookassa_amount) : null,
+    yclientsStudioPo: r.yclients_po_amount != null && parseFloat(r.yclients_po_amount) > 0,
+    yclientsStudioPoAmount: r.yclients_po_amount ? parseFloat(r.yclients_po_amount) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -43,7 +45,7 @@ router.get('/', async (req, res) => {
   if (cached) {
     if (req.headers['if-none-match'] === cached.etag) return res.status(304).end();
     res.setHeader('ETag', cached.etag);
-    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.setHeader('Cache-Control', 'no-cache');
     return res.json(cached.data);
   }
 
@@ -52,25 +54,40 @@ router.get('/', async (req, res) => {
       SELECT
         lr.*,
         yoo.status AS yookassa_status,
-        yoo.summa  AS yookassa_amount
+        yoo.summa  AS yookassa_amount,
+        yc_po.po_amount AS yclients_po_amount
       FROM leads_reporting lr
       LEFT JOIN LATERAL (
         SELECT status, summa
         FROM yookassa
         WHERE lr.amocrm_lead_id <> ''
-          AND deal_id::text = lr.amocrm_lead_id
+          AND deal_id = lr.amocrm_lead_id::BIGINT
           AND status = 'succeeded'
-          AND date::date BETWEEN lr.created_at::date
+          AND date::date BETWEEN (lr.created_at::date - INTERVAL '3 days')
               AND (lr.created_at::date + INTERVAL '3 days')
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
+      LEFT JOIN LATERAL (
+        SELECT ys.oplata AS po_amount
+        FROM yclients_record yr_po
+        JOIN yclients_services ys ON ys.record_id = yr_po.record_id
+        WHERE lr.client_phone <> ''
+          AND REGEXP_REPLACE(yr_po.client_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE(lr.client_phone, '[^0-9]', '', 'g')
+          AND (yr_po.deleted IS NULL OR yr_po.deleted = false)
+          AND ys.service_name ILIKE '%предоплат%'
+          AND ys.oplata > 0
+          AND yr_po.date_visit::date BETWEEN (lr.created_at::date - INTERVAL '7 days')
+              AND (lr.created_at::date + INTERVAL '7 days')
+        ORDER BY yr_po.date_visit ASC
+        LIMIT 1
+      ) yc_po ON true
       ORDER BY lr.created_at DESC
     `);
     const data = result.rows.map(mapLead);
     const entry = cache.set(LEADS_KEY, data, TTL.LEADS);
     res.setHeader('ETag', entry.etag);
-    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.setHeader('Cache-Control', 'no-cache');
     return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: 'Database query error: ' + err.message });
@@ -139,22 +156,23 @@ router.get('/checkin', async (req, res) => {
         yr.services    AS yclients_services,
         yr_other.date_visit AS yclients_other_date,
         yoo.status     AS yookassa_status,
-        yoo.summa      AS yookassa_amount
+        yoo.summa      AS yookassa_amount,
+        yc_po.po_amount AS yclients_po_amount
       FROM leads_reporting lr
       LEFT JOIN LATERAL (
         SELECT status, summa
         FROM yookassa
         WHERE lr.amocrm_lead_id <> ''
-          AND deal_id::text = lr.amocrm_lead_id
+          AND deal_id = lr.amocrm_lead_id::BIGINT
           AND status = 'succeeded'
-          AND date::date BETWEEN lr.created_at::date
+          AND date::date BETWEEN (lr.created_at::date - INTERVAL '3 days')
               AND (lr.created_at::date + INTERVAL '3 days')
         ORDER BY date ASC
         LIMIT 1
       ) yoo ON true
       LEFT JOIN leads l_amo
         ON lr.amocrm_lead_id <> ''
-       AND l_amo.deal_id::text = lr.amocrm_lead_id
+       AND l_amo.deal_id = lr.amocrm_lead_id::BIGINT
       LEFT JOIN LATERAL (
         SELECT
           yr2.attendance,
@@ -185,9 +203,23 @@ router.get('/checkin', async (req, res) => {
           AND yr3.client_id = l_amo.client_id
           AND yr3.date_visit::date != lr.booking_date
           AND (yr3.deleted IS NULL OR yr3.deleted = false)
-        ORDER BY ABS(EXTRACT(epoch FROM (yr3.date_visit::date - lr.booking_date)))
+        ORDER BY ABS(yr3.date_visit::date - lr.booking_date)
         LIMIT 1
       ) yr_other ON true
+      LEFT JOIN LATERAL (
+        SELECT ys.oplata AS po_amount
+        FROM yclients_record yr_po
+        JOIN yclients_services ys ON ys.record_id = yr_po.record_id
+        WHERE lr.client_phone <> ''
+          AND REGEXP_REPLACE(yr_po.client_phone, '[^0-9]', '', 'g') = REGEXP_REPLACE(lr.client_phone, '[^0-9]', '', 'g')
+          AND (yr_po.deleted IS NULL OR yr_po.deleted = false)
+          AND ys.service_name ILIKE '%предоплат%'
+          AND ys.oplata > 0
+          AND yr_po.date_visit::date BETWEEN (lr.created_at::date - INTERVAL '7 days')
+              AND (lr.created_at::date + INTERVAL '7 days')
+        ORDER BY yr_po.date_visit ASC
+        LIMIT 1
+      ) yc_po ON true
       WHERE lr.booking_date <= (NOW() AT TIME ZONE 'Europe/Moscow')::date
         ${managerFilter}
       ORDER BY lr.booking_date DESC
@@ -219,7 +251,7 @@ router.get('/checkin', async (req, res) => {
       createdAt: r.created_at,
     }));
 
-    const entry = cache.set(cacheKey, data, TTL.SHIFTS);
+    const entry = cache.set(cacheKey, data, TTL.CHECKIN);
     res.setHeader('ETag', entry.etag);
     return res.json(data);
   } catch (err: any) {

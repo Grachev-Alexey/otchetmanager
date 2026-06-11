@@ -104,7 +104,7 @@ export default function SalarySummary({
   // Предоплаты — по дате создания записи
   function filterDepositsForManager(managerLeads: LeadReport[]): LeadReport[] {
     return managerLeads.filter(l => {
-      if (l.yookassaPaid) {
+      if (l.yookassaPaid || l.yclientsStudioPo) {
         return l.createdAt && String(l.createdAt).slice(0, 7) === periodPrefix;
       }
       if (l.status === 'showed_up') {

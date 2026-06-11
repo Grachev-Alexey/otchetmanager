@@ -172,7 +172,7 @@ function CopyPhoneCheckin({ phone }: { phone: string }) {
   );
 }
 
-export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, allUsers = [] }: Props) {
+export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, allUsers = [], leadSaveSignal }: Props) {
   const [items, setItems]         = useState<CheckinLead[]>([]);
   const [loading, setLoading]     = useState(true);
   const [busy, setBusy]           = useState<Set<string>>(new Set());
@@ -212,7 +212,20 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
     setLoading(false);
   }, [currentUser.name, currentUser.role]);
 
+  const fetchItemsSilent = useCallback(async () => {
+    try {
+      const data = await api.checkin.list(currentUser.name, currentUser.role);
+      setItems(data);
+    } catch { /* ignore */ }
+  }, [currentUser.name, currentUser.role]);
+
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  useEffect(() => {
+    const handler = () => fetchItemsSilent();
+    window.addEventListener('viviapp:lead-saved', handler);
+    return () => window.removeEventListener('viviapp:lead-saved', handler);
+  }, [fetchItemsSilent]);
 
   const handleStatus = async (id: string, status: 'showed_up' | 'no_show') => {
     setBusy(p => new Set(p).add(id));
@@ -292,9 +305,10 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
         if (ycFilter === 'showed'      && (l.yclientsDeleted || l.yclientsAttendance !== 1))     return false;
         if (ycFilter === 'no_show_ycl' && (l.yclientsDeleted || l.yclientsAttendance !== -1))   return false;
       }
-      if (depFilter === 'paid'       && !l.yookassaPaid)   return false;
-      if (depFilter === 'not_paid'   && !!l.yookassaPaid)  return false;
-      if (depFilter === 'no_deposit' && (!!l.yookassaPaid || l.depositRequired)) return false;
+      const hasPo = !!l.yookassaPaid || !!l.yclientsStudioPo;
+      if (depFilter === 'paid'       && !hasPo)               return false;
+      if (depFilter === 'not_paid'   && hasPo)                return false;
+      if (depFilter === 'no_deposit' && (hasPo || l.depositRequired)) return false;
       return true;
     });
   }, [items, dismissed, search, managerFilter, cityFilter, dateFrom, dateTo, ycFilter, depFilter, showChecked]);
@@ -682,17 +696,24 @@ export default function CheckinPage({ currentUser, onRefreshLeads, onEditLead, a
                 )}
 
                 {/* Payment badge */}
-                {lead.yookassaPaid ? (
+                {lead.yookassaPaid && (
                   <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-lg border bg-violet-50 text-violet-700 border-violet-200">
                     <span className="w-1.5 h-1.5 bg-violet-500 rounded-full" />
                     {lead.yookassaAmount ? `ПО ${fmtMoney(lead.yookassaAmount)}` : 'ПО внесена'}
                   </span>
-                ) : lead.depositRequired ? (
+                )}
+                {lead.yclientsStudioPo && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-lg border bg-teal-50 text-teal-700 border-teal-200">
+                    <span className="w-1.5 h-1.5 bg-teal-500 rounded-full" />
+                    {lead.yclientsStudioPoAmount ? `ПО в студии ${fmtMoney(lead.yclientsStudioPoAmount)}` : 'ПО в студии'}
+                  </span>
+                )}
+                {!lead.yookassaPaid && !lead.yclientsStudioPo && lead.depositRequired && (
                   <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold rounded-lg border bg-orange-50 text-orange-600 border-orange-200">
                     <Banknote className="w-3 h-3" />
                     ПО не поступала
                   </span>
-                ) : null}
+                )}
 
                 {lead.visitCost && lead.visitCost !== 2090 && (
                   <span className="text-[10px] font-medium px-2.5 py-1.5 rounded-lg border bg-neutral-50 text-neutral-500 border-neutral-200/50">

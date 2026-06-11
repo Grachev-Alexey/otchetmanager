@@ -17,6 +17,8 @@ export interface LeadReport {
   isReferral?: boolean;
   yookassaPaid?: boolean;
   yookassaAmount?: number | null;
+  yclientsStudioPo?: boolean;
+  yclientsStudioPoAmount?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

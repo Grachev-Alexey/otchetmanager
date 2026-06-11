@@ -101,6 +101,7 @@ export default function LeadForm({
       isReferral,
       visitCost,
       comments: comments.trim(),
+      createdAt: initialLead?.createdAt,
     };
     const isOk = await onSave(payload);
     setIsLoading(false);

@@ -36,4 +36,5 @@ export const TTL = {
   RULES:  300_000,
   USERS:  300_000,
   SHIFTS:  30_000,
+  CHECKIN: 120_000,
 };

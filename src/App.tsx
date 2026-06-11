@@ -120,6 +120,7 @@ export default function App() {
       applyLeadOptimistic(savedLead);
       setIsFormOpen(false);
       setEditingLead(null);
+      window.dispatchEvent(new CustomEvent('viviapp:lead-saved'));
       refreshLeads();
       return true;
     } catch (err) {

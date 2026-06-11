@@ -161,9 +161,10 @@ export default function LeadList({
           : createdAtFrom ? cd >= createdAtFrom : cd <= createdAtTo
       );
 
+      const hasPo = !!lead.yookassaPaid || !!lead.yclientsStudioPo;
       let depositMatch = true;
-      if      (depositFilter === 'paid')         depositMatch = !!lead.yookassaPaid;
-      else if (depositFilter === 'not_paid')     depositMatch = !!lead.depositRequired && !lead.yookassaPaid;
+      if      (depositFilter === 'paid')         depositMatch = hasPo;
+      else if (depositFilter === 'not_paid')     depositMatch = !!lead.depositRequired && !hasPo;
       else if (depositFilter === 'not_required') depositMatch = !lead.depositRequired;
 
       return searchMatch && statusMatch && managerMatch && cityMatch && bookingDateMatch && createdAtMatch && depositMatch;
@@ -364,12 +365,19 @@ export default function LeadList({
                         </span>
                       )}
 
-                      {lead.yookassaPaid ? (
+                      {lead.yookassaPaid && (
                         <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-violet-50 text-violet-700 border-violet-200">
                           <Banknote className="w-3 h-3 shrink-0" />
                           {lead.yookassaAmount ? `Предоплата: ${lead.yookassaAmount.toLocaleString('ru')} ₽` : 'Предоплата внесена'}
                         </span>
-                      ) : lead.depositRequired ? (
+                      )}
+                      {lead.yclientsStudioPo && (
+                        <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-teal-50 text-teal-700 border-teal-200">
+                          <Banknote className="w-3 h-3 shrink-0" />
+                          {lead.yclientsStudioPoAmount ? `ПО в студии: ${lead.yclientsStudioPoAmount.toLocaleString('ru')} ₽` : 'ПО в студии'}
+                        </span>
+                      )}
+                      {!lead.yookassaPaid && !lead.yclientsStudioPo && lead.depositRequired && (
                         <span className="px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider rounded-lg border shrink-0 flex items-center gap-1.5 shadow-3xs bg-orange-50 text-orange-600 border-orange-200">
                           <Banknote className="w-3 h-3 shrink-0" />
                           Предоплата не поступала
